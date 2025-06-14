@@ -1,0 +1,11 @@
+# logs and such
+*.log
+
+# privatefiles
+.env
+
+#folders we create
+backup/
+data/
+
+#files we create
