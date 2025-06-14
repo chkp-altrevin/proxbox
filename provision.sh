@@ -482,30 +482,60 @@ kiosk_clone_vm() {
             # Show header
             echo "$vm_list" | head -1
             
-            # Process each VM/template to check if it's actually a template
-            echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}' | while read -r vmid; do
-                if [[ -n "$vmid" ]]; then
-                    # Check if this VM is actually a template by looking at config
-                    local is_template=""
-                    if qm config "$vmid" 2>/dev/null | grep -q "^template:"; then
-                        is_template="true"
-                    fi
-                    
-                    # Get the full line for this VMID
-                    local vm_line
-                    vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
-                    
-                    if [[ "$is_template" == "true" ]]; then
-                        echo "   $vm_line (📋 Template)"
+            # Get all VMIDs first
+            local vmids
+            vmids=($(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}'))
+            
+            # Build template detection in batch - much faster approach
+            local template_map=()
+            
+            # Method 1: Check template flag in one go using directory listing (fastest)
+            if [[ -d "/etc/pve/qemu-server" ]]; then
+                for vmid in "${vmids[@]}"; do
+                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
+                        if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                            template_map["$vmid"]="true"
+                        else
+                            template_map["$vmid"]="false"
+                        fi
                     else
-                        echo "   $vm_line (🖥️  VM)"
+                        template_map["$vmid"]="false"
                     fi
+                done
+            else
+                # Fallback: Use pvesm if config directory not accessible
+                local template_list
+                template_list=$(pvesh get /cluster/resources --type vm --output-format json 2>/dev/null | jq -r '.[] | select(.template==1) | .vmid' 2>/dev/null || echo "")
+                
+                # Initialize all as non-templates
+                for vmid in "${vmids[@]}"; do
+                    template_map["$vmid"]="false"
+                done
+                
+                # Mark templates
+                if [[ -n "$template_list" ]]; then
+                    while read -r template_vmid; do
+                        if [[ -n "$template_vmid" ]]; then
+                            template_map["$template_vmid"]="true"
+                        fi
+                    done <<< "$template_list"
+                fi
+            fi
+            
+            # Display results using the pre-built map
+            for vmid in "${vmids[@]}"; do
+                local vm_line
+                vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
+                
+                if [[ "${template_map[$vmid]}" == "true" ]]; then
+                    echo "   $vm_line (📋 Template)"
+                else
+                    echo "   $vm_line (🖥️  VM)"
                 fi
             done
             
             # Count total
-            local total_count
-            total_count=$(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/' | wc -l)
+            local total_count=${#vmids[@]}
             echo ""
             echo "   Total: $total_count items found"
         else
