@@ -470,18 +470,13 @@ kiosk_clone_vm() {
     echo "🔄 Clone Existing VM/Template"
     echo ""
     
-    # Show available VMs and Templates with better formatting
-    echo "📋 Available VMs and Templates:"
-    
+    # Show available VMs and Templates with pagination
     if command -v qm &>/dev/null; then
         # Get full list without limiting
         local vm_list
         vm_list=$(qm list)
         
         if [[ -n "$vm_list" ]]; then
-            # Show header
-            echo "$vm_list" | head -1
-            
             # Get all VMIDs first
             local vmids
             vmids=($(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}'))
@@ -522,34 +517,135 @@ kiosk_clone_vm() {
                 fi
             fi
             
-            # Display results using the pre-built map
-            for vmid in "${vmids[@]}"; do
-                local vm_line
-                vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
+            # Pagination setup
+            local page=1
+            local items_per_page=20
+            local total_count=${#vmids[@]}
+            local total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
+            
+            # Pagination display loop
+            while true; do
+                clear_screen
+                echo "🔄 Clone Existing VM/Template"
+                echo ""
+                echo "📋 Available VMs and Templates:"
                 
-                if [[ "${template_map[$vmid]}" == "true" ]]; then
-                    echo "   $vm_line (📋 Template)"
-                else
-                    echo "   $vm_line (🖥️  VM)"
+                # Calculate start and end indices for current page
+                local start_idx=$(( (page - 1) * items_per_page ))
+                local end_idx=$(( start_idx + items_per_page - 1 ))
+                if [[ $end_idx -ge $total_count ]]; then
+                    end_idx=$(( total_count - 1 ))
                 fi
+                
+                # Show header
+                echo "$vm_list" | head -1
+                
+                # Display current page items
+                for (( i=start_idx; i<=end_idx; i++ )); do
+                    if [[ $i -lt ${#vmids[@]} ]]; then
+                        local vmid="${vmids[$i]}"
+                        local vm_line
+                        vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
+                        
+                        if [[ "${template_map[$vmid]}" == "true" ]]; then
+                            echo "   $vm_line (📋 Template)"
+                        else
+                            echo "   $vm_line (🖥️  VM)"
+                        fi
+                    fi
+                done
+                
+                echo ""
+                echo "📊 Page $page of $total_pages (Total: $total_count items)"
+                echo ""
+                
+                # Navigation options
+                local nav_options="Navigation: "
+                if [[ $page -gt 1 ]]; then
+                    nav_options+="[P]revious  "
+                fi
+                if [[ $page -lt $total_pages ]]; then
+                    nav_options+="[N]ext  "
+                fi
+                nav_options+="[S]elect VMID  [Q]uit"
+                
+                echo "$nav_options"
+                echo ""
+                echo -n "Choose action: "
+                
+                local action
+                read -r action
+                action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+                
+                case "$action" in
+                    p|prev|previous)
+                        if [[ $page -gt 1 ]]; then
+                            ((page--))
+                        else
+                            echo "❌ Already on first page"
+                            sleep 1
+                        fi
+                        ;;
+                    n|next)
+                        if [[ $page -lt $total_pages ]]; then
+                            ((page++))
+                        else
+                            echo "❌ Already on last page"
+                            sleep 1
+                        fi
+                        ;;
+                    s|select)
+                        break  # Exit pagination loop to select VMID
+                        ;;
+                    q|quit)
+                        return  # Exit function completely
+                        ;;
+                    [0-9]*)
+                        # User entered a number directly - treat as VMID selection
+                        if [[ "$action" =~ ^[0-9]+$ ]]; then
+                            # Check if VMID exists in our list
+                            local found=false
+                            for vmid in "${vmids[@]}"; do
+                                if [[ "$vmid" == "$action" ]]; then
+                                    found=true
+                                    break
+                                fi
+                            done
+                            if [[ "$found" == "true" ]]; then
+                                source_vmid="$action"
+                                break  # Exit pagination loop with selected VMID
+                            else
+                                echo "❌ VMID $action not found in the list"
+                                sleep 2
+                            fi
+                        else
+                            echo "❌ Invalid input. Use P/N/S/Q or enter a VMID number"
+                            sleep 2
+                        fi
+                        ;;
+                    *)
+                        echo "❌ Invalid option. Use P (previous), N (next), S (select), Q (quit), or enter VMID"
+                        sleep 2
+                        ;;
+                esac
             done
             
-            # Count total
-            local total_count=${#vmids[@]}
-            echo ""
-            echo "   Total: $total_count items found"
+            # If we exited the pagination loop without a selected VMID, ask for it
+            if [[ -z "${source_vmid:-}" ]]; then
+                echo ""
+                echo -n "Enter source VMID to clone: "
+                read -r source_vmid
+            fi
         else
             echo "   ⚠️  No VMs or templates found"
+            kiosk_pause
+            return
         fi
     else
         echo "   ❌ Proxmox tools not available"
         kiosk_pause
         return
     fi
-    
-    echo ""
-    echo -n "Enter source VMID to clone: "
-    read -r source_vmid
     
     if [[ -z "$source_vmid" ]] || ! [[ "$source_vmid" =~ ^[0-9]+$ ]]; then
         echo "❌ Invalid VMID"
