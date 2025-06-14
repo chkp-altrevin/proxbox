@@ -106,9 +106,99 @@ kiosk_create_template() {
     echo "📁 Create Template from Image"
     echo ""
     
-    # Get image
-    echo -n "Enter image path or URL: "
-    read -r image_input
+    # Show available images in Proxmox
+    echo "📁 Available Images in Proxmox:"
+    local image_list=()
+    local image_display=()
+    
+    # Check common Proxmox ISO storage locations
+    local iso_paths=(
+        "/var/lib/vz/template/iso"
+        "/var/lib/vz/template/cache" 
+        "/mnt/pve/*/template/iso"
+        "/mnt/pve/*/template/cache"
+    )
+    
+    local count=1
+    for iso_path in "${iso_paths[@]}"; do
+        if [[ -d "$iso_path" ]] 2>/dev/null; then
+            while IFS= read -r -d '' file; do
+                if [[ -f "$file" && "$file" =~ \.(iso|img|qcow2)$ ]]; then
+                    local filename=$(basename "$file")
+                    local filesize
+                    filesize=$(du -h "$file" 2>/dev/null | cut -f1 || echo "Unknown")
+                    image_list+=("$file")
+                    image_display+=("$count) $filename ($filesize)")
+                    ((count++))
+                fi
+            done < <(find "$iso_path" -maxdepth 1 -type f \( -name "*.iso" -o -name "*.img" -o -name "*.qcow2" \) -print0 2>/dev/null)
+        fi
+    done
+    
+    # Also check using pvesm if available
+    if command -v pvesm &>/dev/null; then
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^(.*):(.*)$ ]]; then
+                local storage="${BASH_REMATCH[1]}"
+                local filename="${BASH_REMATCH[2]}"
+                if [[ "$filename" =~ \.(iso|img|qcow2)$ ]]; then
+                    local full_path="$storage:iso/$filename"
+                    # Check if we haven't already added this file
+                    local already_added=false
+                    for existing in "${image_list[@]}"; do
+                        if [[ "$(basename "$existing")" == "$filename" ]]; then
+                            already_added=true
+                            break
+                        fi
+                    done
+                    if [[ "$already_added" == false ]]; then
+                        image_list+=("$full_path")
+                        image_display+=("$count) $filename (Proxmox storage: $storage)")
+                        ((count++))
+                    fi
+                fi
+            fi
+        done < <(pvesm list local 2>/dev/null | grep -E '\.(iso|img|qcow2)' || true)
+    fi
+    
+    if [[ ${#image_list[@]} -gt 0 ]]; then
+        for display_item in "${image_display[@]}"; do
+            echo "   $display_item"
+        done
+        echo ""
+        echo "   0) Enter custom path or URL"
+        echo ""
+        echo -n "Select an image [0-$((count-1))] or press Enter for custom: "
+        
+        local image_choice
+        read -r image_choice
+        
+        local image_input=""
+        if [[ -n "$image_choice" && "$image_choice" =~ ^[0-9]+$ && "$image_choice" -gt 0 && "$image_choice" -lt "$count" ]]; then
+            # User selected a numbered option
+            image_input="${image_list[$((image_choice-1))]}"
+            echo "✅ Selected: $(basename "$image_input")"
+        elif [[ "$image_choice" == "0" || -z "$image_choice" ]]; then
+            # User wants to enter custom path
+            echo ""
+            echo -n "Enter custom image path or URL: "
+            read -r image_input
+        else
+            echo "❌ Invalid selection"
+            kiosk_pause
+            return
+        fi
+    else
+        echo "   ⚠️  No images found in default locations"
+        echo "   Common locations checked:"
+        for iso_path in "${iso_paths[@]}"; do
+            echo "     - $iso_path"
+        done
+        echo ""
+        echo -n "Enter image path or URL: "
+        read -r image_input
+    fi
+    
     if [[ -z "$image_input" ]]; then
         echo "❌ Image path/URL cannot be empty"
         kiosk_pause
@@ -118,6 +208,7 @@ kiosk_create_template() {
     # Get VMID
     local suggested_vmid
     suggested_vmid=$(get_next_vmid)
+    echo ""
     echo -n "Enter VMID [$suggested_vmid]: "
     read -r vmid_input
     vmid_input=${vmid_input:-$suggested_vmid}
@@ -127,14 +218,39 @@ kiosk_create_template() {
     read -r name_input
     name_input=${name_input:-ubuntu-template}
     
+    # Advanced options prompt
+    echo ""
+    echo "⚙️  Configure advanced options? [y/N]: "
+    read -r advanced_config
+    
+    local memory_config="${MEMORY:-$DEFAULT_MEMORY}"
+    local cores_config="${CORES:-$DEFAULT_CORES}"
+    local storage_config="$STORAGE"
+    
+    if [[ "${advanced_config,,}" == "y" ]]; then
+        echo ""
+        echo "📊 Advanced Configuration:"
+        echo -n "Memory (MB) [$memory_config]: "
+        read -r new_memory
+        memory_config="${new_memory:-$memory_config}"
+        
+        echo -n "CPU Cores [$cores_config]: "
+        read -r new_cores
+        cores_config="${new_cores:-$cores_config}"
+        
+        echo -n "Storage [$storage_config]: "
+        read -r new_storage
+        storage_config="${new_storage:-$storage_config}"
+    fi
+    
     echo ""
     echo "📋 Template Configuration:"
-    echo "   Image: $image_input"
+    echo "   Image: $(basename "$image_input")"
     echo "   VMID: $vmid_input"
     echo "   Name: $name_input"
-    echo "   Storage: $STORAGE"
-    echo "   Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
-    echo "   Cores: ${CORES:-$DEFAULT_CORES}"
+    echo "   Storage: $storage_config"
+    echo "   Memory: ${memory_config}MB"
+    echo "   Cores: $cores_config"
     echo ""
     echo -n "Create template? [Y/n]: "
     
@@ -150,11 +266,18 @@ kiosk_create_template() {
         IMAGE="$image_input"
         VMID="$vmid_input"
         VM_NAME="$name_input"
+        MEMORY="$memory_config"
+        CORES="$cores_config"
+        STORAGE="$storage_config"
         PROVISION_VM=0
         
         create_template
         echo ""
         echo "✅ Template created successfully!"
+        echo "🏗️  Template Details:"
+        echo "   VMID: $vmid_input"
+        echo "   Name: $name_input"
+        echo "   Ready for cloning!"
         kiosk_pause
     fi
 }
@@ -164,9 +287,99 @@ kiosk_provision_vm() {
     echo "🖥️  Provision VM from Image"
     echo ""
     
-    # Get image
-    echo -n "Enter image path or URL: "
-    read -r image_input
+    # Show available images in Proxmox
+    echo "📁 Available Images in Proxmox:"
+    local image_list=()
+    local image_display=()
+    
+    # Check common Proxmox ISO storage locations
+    local iso_paths=(
+        "/var/lib/vz/template/iso"
+        "/var/lib/vz/template/cache" 
+        "/mnt/pve/*/template/iso"
+        "/mnt/pve/*/template/cache"
+    )
+    
+    local count=1
+    for iso_path in "${iso_paths[@]}"; do
+        if [[ -d "$iso_path" ]] 2>/dev/null; then
+            while IFS= read -r -d '' file; do
+                if [[ -f "$file" && "$file" =~ \.(iso|img|qcow2)$ ]]; then
+                    local filename=$(basename "$file")
+                    local filesize
+                    filesize=$(du -h "$file" 2>/dev/null | cut -f1 || echo "Unknown")
+                    image_list+=("$file")
+                    image_display+=("$count) $filename ($filesize)")
+                    ((count++))
+                fi
+            done < <(find "$iso_path" -maxdepth 1 -type f \( -name "*.iso" -o -name "*.img" -o -name "*.qcow2" \) -print0 2>/dev/null)
+        fi
+    done
+    
+    # Also check using pvesm if available
+    if command -v pvesm &>/dev/null; then
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^(.*):(.*)$ ]]; then
+                local storage="${BASH_REMATCH[1]}"
+                local filename="${BASH_REMATCH[2]}"
+                if [[ "$filename" =~ \.(iso|img|qcow2)$ ]]; then
+                    local full_path="$storage:iso/$filename"
+                    # Check if we haven't already added this file
+                    local already_added=false
+                    for existing in "${image_list[@]}"; do
+                        if [[ "$(basename "$existing")" == "$filename" ]]; then
+                            already_added=true
+                            break
+                        fi
+                    done
+                    if [[ "$already_added" == false ]]; then
+                        image_list+=("$full_path")
+                        image_display+=("$count) $filename (Proxmox storage: $storage)")
+                        ((count++))
+                    fi
+                fi
+            fi
+        done < <(pvesm list local 2>/dev/null | grep -E '\.(iso|img|qcow2)' || true)
+    fi
+    
+    if [[ ${#image_list[@]} -gt 0 ]]; then
+        for display_item in "${image_display[@]}"; do
+            echo "   $display_item"
+        done
+        echo ""
+        echo "   0) Enter custom path or URL"
+        echo ""
+        echo -n "Select an image [0-$((count-1))] or press Enter for custom: "
+        
+        local image_choice
+        read -r image_choice
+        
+        local image_input=""
+        if [[ -n "$image_choice" && "$image_choice" =~ ^[0-9]+$ && "$image_choice" -gt 0 && "$image_choice" -lt "$count" ]]; then
+            # User selected a numbered option
+            image_input="${image_list[$((image_choice-1))]}"
+            echo "✅ Selected: $(basename "$image_input")"
+        elif [[ "$image_choice" == "0" || -z "$image_choice" ]]; then
+            # User wants to enter custom path
+            echo ""
+            echo -n "Enter custom image path or URL: "
+            read -r image_input
+        else
+            echo "❌ Invalid selection"
+            kiosk_pause
+            return
+        fi
+    else
+        echo "   ⚠️  No images found in default locations"
+        echo "   Common locations checked:"
+        for iso_path in "${iso_paths[@]}"; do
+            echo "     - $iso_path"
+        done
+        echo ""
+        echo -n "Enter image path or URL: "
+        read -r image_input
+    fi
+    
     if [[ -z "$image_input" ]]; then
         echo "❌ Image path/URL cannot be empty"
         kiosk_pause
@@ -176,6 +389,7 @@ kiosk_provision_vm() {
     # Get VMID
     local suggested_vmid
     suggested_vmid=$(get_next_vmid)
+    echo ""
     echo -n "Enter VMID [$suggested_vmid]: "
     read -r vmid_input
     vmid_input=${vmid_input:-$suggested_vmid}
@@ -185,14 +399,39 @@ kiosk_provision_vm() {
     read -r name_input
     name_input=${name_input:-ubuntu-vm}
     
+    # Advanced options prompt
+    echo ""
+    echo "⚙️  Configure advanced options? [y/N]: "
+    read -r advanced_config
+    
+    local memory_config="${MEMORY:-$DEFAULT_MEMORY}"
+    local cores_config="${CORES:-$DEFAULT_CORES}"
+    local storage_config="$STORAGE"
+    
+    if [[ "${advanced_config,,}" == "y" ]]; then
+        echo ""
+        echo "📊 Advanced Configuration:"
+        echo -n "Memory (MB) [$memory_config]: "
+        read -r new_memory
+        memory_config="${new_memory:-$memory_config}"
+        
+        echo -n "CPU Cores [$cores_config]: "
+        read -r new_cores
+        cores_config="${new_cores:-$cores_config}"
+        
+        echo -n "Storage [$storage_config]: "
+        read -r new_storage
+        storage_config="${new_storage:-$storage_config}"
+    fi
+    
     echo ""
     echo "📋 VM Configuration:"
-    echo "   Image: $image_input"
+    echo "   Image: $(basename "$image_input")"
     echo "   VMID: $vmid_input"
     echo "   Name: $name_input"
-    echo "   Storage: $STORAGE"
-    echo "   Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
-    echo "   Cores: ${CORES:-$DEFAULT_CORES}"
+    echo "   Storage: $storage_config"
+    echo "   Memory: ${memory_config}MB"
+    echo "   Cores: $cores_config"
     echo ""
     echo -n "Create and start VM? [Y/n]: "
     
@@ -208,11 +447,20 @@ kiosk_provision_vm() {
         IMAGE="$image_input"
         VMID="$vmid_input"
         VM_NAME="$name_input"
+        MEMORY="$memory_config"
+        CORES="$cores_config"
+        STORAGE="$storage_config"
         PROVISION_VM=1
         
         create_template
         echo ""
         echo "✅ VM created and started successfully!"
+        echo "🌐 VM Details:"
+        echo "   VMID: $vmid_input"
+        echo "   Name: $name_input"
+        echo "   Status: Starting..."
+        echo ""
+        echo "💡 Access via Proxmox console or wait for network configuration"
         kiosk_pause
     fi
 }
