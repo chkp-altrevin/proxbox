@@ -470,32 +470,100 @@ kiosk_clone_vm() {
     echo "🔄 Clone Existing VM/Template"
     echo ""
     
-    # Show available VMs
-    echo "📋 Available VMs/Templates:"
-    qm list | awk 'NR==1 || $1 ~ /^[0-9]+$/' | head -10
-    echo ""
+    # Show available VMs and Templates with better formatting
+    echo "📋 Available VMs and Templates:"
     
+    if command -v qm &>/dev/null; then
+        # Get full list without limiting
+        local vm_list
+        vm_list=$(qm list)
+        
+        if [[ -n "$vm_list" ]]; then
+            # Show header
+            echo "$vm_list" | head -1
+            
+            # Show VMs and templates with type indication
+            echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {
+                # Determine if its a template or VM
+                if ($3 == "Template") {
+                    printf "   %s (📋 Template)\n", $0
+                } else {
+                    printf "   %s (🖥️  VM)\n", $0
+                }
+            }'
+            
+            # Count total
+            local total_count
+            total_count=$(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/' | wc -l)
+            echo ""
+            echo "   Total: $total_count items found"
+        else
+            echo "   ⚠️  No VMs or templates found"
+        fi
+    else
+        echo "   ❌ Proxmox tools not available"
+        kiosk_pause
+        return
+    fi
+    
+    echo ""
     echo -n "Enter source VMID to clone: "
     read -r source_vmid
+    
     if [[ -z "$source_vmid" ]] || ! [[ "$source_vmid" =~ ^[0-9]+$ ]]; then
         echo "❌ Invalid VMID"
         kiosk_pause
         return
     fi
     
-    # Check if source VMID exists
+    # Check if source VMID exists and get details
     if ! qm status "$source_vmid" &>/dev/null; then
         echo "❌ VMID $source_vmid not found"
         kiosk_pause
         return
     fi
     
+    # Show source VM/template details
+    echo ""
+    echo "📊 Source Details:"
+    local source_config
+    source_config=$(qm config "$source_vmid" 2>/dev/null)
+    
+    if [[ -n "$source_config" ]]; then
+        # Extract key information
+        local vm_name
+        vm_name=$(echo "$source_config" | grep "^name:" | cut -d' ' -f2- || echo "Unnamed")
+        
+        local vm_memory
+        vm_memory=$(echo "$source_config" | grep "^memory:" | cut -d' ' -f2 || echo "Unknown")
+        
+        local vm_cores
+        vm_cores=$(echo "$source_config" | grep "^cores:" | cut -d' ' -f2 || echo "Unknown")
+        
+        local is_template
+        is_template=$(echo "$source_config" | grep "^template:" | cut -d' ' -f2)
+        
+        echo "   VMID: $source_vmid"
+        echo "   Name: $vm_name"
+        echo "   Type: $([ "$is_template" == "1" ] && echo "📋 Template" || echo "🖥️  VM")"
+        echo "   Memory: ${vm_memory}MB"
+        echo "   Cores: $vm_cores"
+    fi
+    
     # Get new VMID
     local suggested_vmid
     suggested_vmid=$(get_next_vmid)
+    echo ""
     echo -n "Enter new VMID [$suggested_vmid]: "
     read -r new_vmid
     new_vmid=${new_vmid:-$suggested_vmid}
+    
+    # Validate new VMID
+    if qm status "$new_vmid" &>/dev/null; then
+        echo "❌ VMID $new_vmid already exists"
+        kiosk_pause
+        return
+    fi
     
     # Get name
     echo -n "Enter name for cloned VM [cloned-vm-$new_vmid]: "
@@ -505,23 +573,27 @@ kiosk_clone_vm() {
     # Clone type
     echo ""
     echo "Clone options:"
-    echo "  1) Full clone (independent copy)"
-    echo "  2) Linked clone (dependent on original)"
+    echo "  1) Full clone (independent copy - recommended for templates)"
+    echo "  2) Linked clone (dependent on original - faster but requires source)"
     echo -n "Select clone type [1]: "
     read -r clone_type
     clone_type=${clone_type:-1}
     
     local full_flag=""
+    local clone_description=""
     if [[ "$clone_type" == "1" ]]; then
         full_flag="--full"
+        clone_description="Full clone (independent)"
+    else
+        clone_description="Linked clone (dependent)"
     fi
     
     echo ""
     echo "📋 Clone Configuration:"
-    echo "   Source VMID: $source_vmid"
+    echo "   Source VMID: $source_vmid ($([ "$is_template" == "1" ] && echo "Template" || echo "VM"))"
     echo "   New VMID: $new_vmid"
     echo "   Name: $clone_name"
-    echo "   Type: $([ "$clone_type" == "1" ] && echo "Full clone" || echo "Linked clone")"
+    echo "   Type: $clone_description"
     echo ""
     echo -n "Proceed with cloning? [Y/n]: "
     
@@ -536,15 +608,35 @@ kiosk_clone_vm() {
         if [[ $DRY_RUN -eq 1 ]]; then
             echo "[DRY-RUN] qm clone $source_vmid $new_vmid --name $clone_name $full_flag"
         else
-            qm clone "$source_vmid" "$new_vmid" --name "$clone_name" $full_flag
-            echo ""
-            echo -n "Start the cloned VM now? [y/N]: "
-            read -r start_confirm
-            if [[ "${start_confirm,,}" == "y" ]]; then
-                qm start "$new_vmid"
-                echo "✅ VM cloned and started successfully!"
+            # Perform the clone
+            if qm clone "$source_vmid" "$new_vmid" --name "$clone_name" $full_flag; then
+                echo "✅ Clone operation completed successfully!"
+                
+                # Only ask to start if it's not a template
+                if [[ "$is_template" != "1" ]] || [[ "$clone_type" == "1" ]]; then
+                    echo ""
+                    echo -n "Start the cloned VM now? [y/N]: "
+                    read -r start_confirm
+                    if [[ "${start_confirm,,}" == "y" ]]; then
+                        if qm start "$new_vmid"; then
+                            echo "✅ VM started successfully!"
+                            echo "🌐 VM Details:"
+                            echo "   VMID: $new_vmid"
+                            echo "   Name: $clone_name"
+                            echo "   Status: Starting..."
+                        else
+                            echo "⚠️  Clone successful but failed to start VM"
+                        fi
+                    else
+                        echo "✅ VM cloned successfully (not started)"
+                    fi
+                else
+                    echo "📋 Template cloned successfully!"
+                    echo "   New template VMID: $new_vmid"
+                    echo "   Ready for further cloning!"
+                fi
             else
-                echo "✅ VM cloned successfully (not started)!"
+                echo "❌ Clone operation failed"
             fi
         fi
         kiosk_pause
