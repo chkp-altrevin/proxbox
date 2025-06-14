@@ -802,9 +802,153 @@ kiosk_list_vms() {
     echo ""
     
     if command -v qm &>/dev/null; then
-        qm list | awk 'NR==1 || $1 ~ /^[0-9]+$/'
-        echo ""
-        echo "Legend: STATUS - running/stopped, TYPE - vm/template"
+        # Get full list without limiting
+        local vm_list
+        vm_list=$(qm list)
+        
+        if [[ -n "$vm_list" ]]; then
+            # Get all VMIDs first
+            local vmids
+            vmids=($(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}'))
+            
+            # Build template detection in batch - much faster approach
+            local template_map=()
+            
+            # Method 1: Check template flag in one go using directory listing (fastest)
+            if [[ -d "/etc/pve/qemu-server" ]]; then
+                for vmid in "${vmids[@]}"; do
+                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
+                        if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                            template_map["$vmid"]="true"
+                        else
+                            template_map["$vmid"]="false"
+                        fi
+                    else
+                        template_map["$vmid"]="false"
+                    fi
+                done
+            else
+                # Fallback: Use pvesm if config directory not accessible
+                local template_list
+                template_list=$(pvesh get /cluster/resources --type vm --output-format json 2>/dev/null | jq -r '.[] | select(.template==1) | .vmid' 2>/dev/null || echo "")
+                
+                # Initialize all as non-templates
+                for vmid in "${vmids[@]}"; do
+                    template_map["$vmid"]="false"
+                done
+                
+                # Mark templates
+                if [[ -n "$template_list" ]]; then
+                    while read -r template_vmid; do
+                        if [[ -n "$template_vmid" ]]; then
+                            template_map["$template_vmid"]="true"
+                        fi
+                    done <<< "$template_list"
+                fi
+            fi
+            
+            # Pagination setup
+            local page=1
+            local items_per_page=20
+            local total_count=${#vmids[@]}
+            local total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
+            
+            # Pagination display loop
+            while true; do
+                clear_screen
+                echo "📋 All VMs and Templates"
+                echo ""
+                
+                # Calculate start and end indices for current page
+                local start_idx=$(( (page - 1) * items_per_page ))
+                local end_idx=$(( start_idx + items_per_page - 1 ))
+                if [[ $end_idx -ge $total_count ]]; then
+                    end_idx=$(( total_count - 1 ))
+                fi
+                
+                # Show header
+                echo "$vm_list" | head -1
+                
+                # Display current page items
+                for (( i=start_idx; i<=end_idx; i++ )); do
+                    if [[ $i -lt ${#vmids[@]} ]]; then
+                        local vmid="${vmids[$i]}"
+                        local vm_line
+                        vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
+                        
+                        if [[ "${template_map[$vmid]}" == "true" ]]; then
+                            echo "   $vm_line (📋 Template)"
+                        else
+                            echo "   $vm_line (🖥️  VM)"
+                        fi
+                    fi
+                done
+                
+                echo ""
+                echo "📊 Page $page of $total_pages (Total: $total_count items)"
+                
+                # Count templates and VMs for summary
+                local template_count=0
+                local vm_count=0
+                for vmid in "${vmids[@]}"; do
+                    if [[ "${template_map[$vmid]}" == "true" ]]; then
+                        ((template_count++))
+                    else
+                        ((vm_count++))
+                    fi
+                done
+                echo "📈 Summary: $vm_count VMs, $template_count Templates"
+                echo ""
+                echo "Legend: 🖥️  = Virtual Machine, 📋 = Template"
+                echo ""
+                
+                # Navigation options
+                local nav_options="Navigation: "
+                if [[ $page -gt 1 ]]; then
+                    nav_options+="[P]revious  "
+                fi
+                if [[ $page -lt $total_pages ]]; then
+                    nav_options+="[N]ext  "
+                fi
+                nav_options+="[Q]uit"
+                
+                echo "$nav_options"
+                echo ""
+                echo -n "Choose action: "
+                
+                local action
+                read -r action
+                action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+                
+                case "$action" in
+                    p|prev|previous)
+                        if [[ $page -gt 1 ]]; then
+                            ((page--))
+                        else
+                            echo "❌ Already on first page"
+                            sleep 1
+                        fi
+                        ;;
+                    n|next)
+                        if [[ $page -lt $total_pages ]]; then
+                            ((page++))
+                        else
+                            echo "❌ Already on last page"
+                            sleep 1
+                        fi
+                        ;;
+                    q|quit)
+                        break  # Exit pagination loop
+                        ;;
+                    *)
+                        echo "❌ Invalid option. Use P (previous), N (next), or Q (quit)"
+                        sleep 2
+                        ;;
+                esac
+            done
+        else
+            echo "❌ No VMs or templates found"
+        fi
     else
         echo "❌ Proxmox tools not available"
     fi
@@ -817,13 +961,185 @@ kiosk_delete_vm() {
     echo "🗑️  Delete VM/Template"
     echo ""
     
-    # Show available VMs
-    echo "📋 Available VMs/Templates:"
-    qm list | awk 'NR==1 || $1 ~ /^[0-9]+$/' | head -10
-    echo ""
+    if command -v qm &>/dev/null; then
+        # Get full list without limiting
+        local vm_list
+        vm_list=$(qm list)
+        
+        if [[ -n "$vm_list" ]]; then
+            # Get all VMIDs first
+            local vmids
+            vmids=($(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}'))
+            
+            # Build template detection in batch - much faster approach
+            local template_map=()
+            
+            # Method 1: Check template flag in one go using directory listing (fastest)
+            if [[ -d "/etc/pve/qemu-server" ]]; then
+                for vmid in "${vmids[@]}"; do
+                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
+                        if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                            template_map["$vmid"]="true"
+                        else
+                            template_map["$vmid"]="false"
+                        fi
+                    else
+                        template_map["$vmid"]="false"
+                    fi
+                done
+            else
+                # Fallback: Use pvesm if config directory not accessible
+                local template_list
+                template_list=$(pvesh get /cluster/resources --type vm --output-format json 2>/dev/null | jq -r '.[] | select(.template==1) | .vmid' 2>/dev/null || echo "")
+                
+                # Initialize all as non-templates
+                for vmid in "${vmids[@]}"; do
+                    template_map["$vmid"]="false"
+                done
+                
+                # Mark templates
+                if [[ -n "$template_list" ]]; then
+                    while read -r template_vmid; do
+                        if [[ -n "$template_vmid" ]]; then
+                            template_map["$template_vmid"]="true"
+                        fi
+                    done <<< "$template_list"
+                fi
+            fi
+            
+            # Pagination setup
+            local page=1
+            local items_per_page=20
+            local total_count=${#vmids[@]}
+            local total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
+            local delete_vmid=""
+            
+            # Pagination display loop
+            while true; do
+                clear_screen
+                echo "🗑️  Delete VM/Template"
+                echo ""
+                echo "⚠️  WARNING: This will permanently delete the selected VM/Template!"
+                echo ""
+                echo "📋 Available VMs and Templates:"
+                
+                # Calculate start and end indices for current page
+                local start_idx=$(( (page - 1) * items_per_page ))
+                local end_idx=$(( start_idx + items_per_page - 1 ))
+                if [[ $end_idx -ge $total_count ]]; then
+                    end_idx=$(( total_count - 1 ))
+                fi
+                
+                # Show header
+                echo "$vm_list" | head -1
+                
+                # Display current page items
+                for (( i=start_idx; i<=end_idx; i++ )); do
+                    if [[ $i -lt ${#vmids[@]} ]]; then
+                        local vmid="${vmids[$i]}"
+                        local vm_line
+                        vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
+                        
+                        if [[ "${template_map[$vmid]}" == "true" ]]; then
+                            echo "   $vm_line (📋 Template)"
+                        else
+                            echo "   $vm_line (🖥️  VM)"
+                        fi
+                    fi
+                done
+                
+                echo ""
+                echo "📊 Page $page of $total_pages (Total: $total_count items)"
+                echo ""
+                
+                # Navigation options
+                local nav_options="Navigation: "
+                if [[ $page -gt 1 ]]; then
+                    nav_options+="[P]revious  "
+                fi
+                if [[ $page -lt $total_pages ]]; then
+                    nav_options+="[N]ext  "
+                fi
+                nav_options+="[S]elect VMID  [Q]uit"
+                
+                echo "$nav_options"
+                echo ""
+                echo -n "Choose action: "
+                
+                local action
+                read -r action
+                action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+                
+                case "$action" in
+                    p|prev|previous)
+                        if [[ $page -gt 1 ]]; then
+                            ((page--))
+                        else
+                            echo "❌ Already on first page"
+                            sleep 1
+                        fi
+                        ;;
+                    n|next)
+                        if [[ $page -lt $total_pages ]]; then
+                            ((page++))
+                        else
+                            echo "❌ Already on last page"
+                            sleep 1
+                        fi
+                        ;;
+                    s|select)
+                        break  # Exit pagination loop to select VMID
+                        ;;
+                    q|quit)
+                        return  # Exit function completely
+                        ;;
+                    [0-9]*)
+                        # User entered a number directly - treat as VMID selection
+                        if [[ "$action" =~ ^[0-9]+$ ]]; then
+                            # Check if VMID exists in our list
+                            local found=false
+                            for vmid in "${vmids[@]}"; do
+                                if [[ "$vmid" == "$action" ]]; then
+                                    found=true
+                                    break
+                                fi
+                            done
+                            if [[ "$found" == "true" ]]; then
+                                delete_vmid="$action"
+                                break  # Exit pagination loop with selected VMID
+                            else
+                                echo "❌ VMID $action not found in the list"
+                                sleep 2
+                            fi
+                        else
+                            echo "❌ Invalid input. Use P/N/S/Q or enter a VMID number"
+                            sleep 2
+                        fi
+                        ;;
+                    *)
+                        echo "❌ Invalid option. Use P (previous), N (next), S (select), Q (quit), or enter VMID"
+                        sleep 2
+                        ;;
+                esac
+            done
+            
+            # If we exited the pagination loop without a selected VMID, ask for it
+            if [[ -z "${delete_vmid:-}" ]]; then
+                echo ""
+                echo -n "Enter VMID to delete: "
+                read -r delete_vmid
+            fi
+        else
+            echo "❌ No VMs or templates found"
+            kiosk_pause
+            return
+        fi
+    else
+        echo "❌ Proxmox tools not available"
+        kiosk_pause
+        return
+    fi
     
-    echo -n "Enter VMID to delete: "
-    read -r delete_vmid
     if [[ -z "$delete_vmid" ]] || ! [[ "$delete_vmid" =~ ^[0-9]+$ ]]; then
         echo "❌ Invalid VMID"
         kiosk_pause
@@ -839,12 +1155,46 @@ kiosk_delete_vm() {
     
     # Show VM details
     echo ""
-    echo "📊 VM Details:"
-    qm config "$delete_vmid" | head -5
-    echo ""
+    echo "📊 VM/Template Details:"
+    local vm_config
+    vm_config=$(qm config "$delete_vmid" 2>/dev/null)
     
+    if [[ -n "$vm_config" ]]; then
+        # Extract key information
+        local vm_name
+        vm_name=$(echo "$vm_config" | grep "^name:" | cut -d' ' -f2- || echo "Unnamed")
+        
+        local vm_memory
+        vm_memory=$(echo "$vm_config" | grep "^memory:" | cut -d' ' -f2 || echo "Unknown")
+        
+        local vm_cores
+        vm_cores=$(echo "$vm_config" | grep "^cores:" | cut -d' ' -f2 || echo "Unknown")
+        
+        local is_template=""
+        if echo "$vm_config" | grep -q "^template:"; then
+            is_template="true"
+        fi
+        
+        echo "   VMID: $delete_vmid"
+        echo "   Name: $vm_name"
+        echo "   Type: $([ "$is_template" == "true" ] && echo "📋 Template" || echo "🖥️  VM")"
+        echo "   Memory: ${vm_memory}MB"
+        echo "   Cores: $vm_cores"
+        
+        # Show current status
+        local vm_status
+        vm_status=$(qm status "$delete_vmid" 2>/dev/null | awk '{print $2}' || echo "unknown")
+        echo "   Status: $vm_status"
+    fi
+    
+    echo ""
     echo "⚠️  WARNING: This will permanently delete VMID $delete_vmid!"
-    echo -n "Type 'DELETE' to confirm: "
+    if [[ "$is_template" == "true" ]]; then
+        echo "🔥 You are about to delete a TEMPLATE - this may affect cloned VMs!"
+    fi
+    echo ""
+    echo -n "Type 'DELETE' to confirm (case sensitive): "
+    local confirm
     read -r confirm
     
     if [[ "$confirm" == "DELETE" ]]; then
@@ -856,19 +1206,33 @@ kiosk_delete_vm() {
             echo "[DRY-RUN] qm destroy $delete_vmid --purge"
         else
             # Stop VM if running
-            if qm status "$delete_vmid" | grep -q "running"; then
-                echo "🛑 Stopping VM..."
-                qm stop "$delete_vmid" || true
-                sleep 2
+            local vm_status
+            vm_status=$(qm status "$delete_vmid" 2>/dev/null | awk '{print $2}' || echo "stopped")
+            if [[ "$vm_status" == "running" ]]; then
+                echo "🛑 Stopping VM/Template..."
+                if qm stop "$delete_vmid"; then
+                    echo "✅ VM/Template stopped"
+                    sleep 2
+                else
+                    echo "⚠️  Failed to stop VM/Template, attempting forced deletion..."
+                fi
             fi
             
-            # Delete VM
-            qm destroy "$delete_vmid" --purge
-            echo "✅ VMID $delete_vmid deleted successfully!"
+            # Delete VM/Template
+            if qm destroy "$delete_vmid" --purge; then
+                echo "✅ VMID $delete_vmid deleted successfully!"
+                if [[ "$is_template" == "true" ]]; then
+                    echo "📋 Template has been removed from the system"
+                else
+                    echo "🖥️  VM has been removed from the system"
+                fi
+            else
+                echo "❌ Failed to delete VMID $delete_vmid"
+            fi
         fi
         kiosk_pause
     else
-        echo "❌ Deletion cancelled"
+        echo "❌ Deletion cancelled (confirmation text must be exactly 'DELETE')"
         sleep 2
     fi
 }
