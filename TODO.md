@@ -1,5 +1,9 @@
 ## Todo Items
 
+### Cluster Support Extended
+- list vm/templates
+- all vm/template actions referenced
+
 ### Kiosk Widgets
 - add to widget window Default Configuration "Modify 6)"
 - add Default Configuration side of Current Configuration
