@@ -1,6 +1,7 @@
 ## Todo Items
 
 ### Cluster Support Extended
+- node selection
 - list vm/templates
 - all vm/template actions referenced
 
