@@ -51,3 +51,8 @@ Add - Modify Defaults, creates a default_env file, to support all defaults. crea
 
 Add - Import (.env) based on config file ****
 Add - make current settings the default profile - save, name 
+
+## References
+
+- cloud-init support
+  https://pve.proxmox.com/wiki/Cloud-Init_Support
