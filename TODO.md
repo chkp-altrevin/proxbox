@@ -1,5 +1,9 @@
 ## Todo Items
 
+### Kiosk Widgets
+- add to widget window Default Configuration "Modify 6)"
+- add Default Configuration side of Current Configuration
+
 ### Main Menu Adds
 
 - Add Stop and Start VMs
@@ -30,7 +34,8 @@
 8
 9) resets to defaults
 
-### Menu add ons
+### Settings Menu add ons
+Add - Modify Defaults, creates a default_env file, to support all defaults. creates like the ranchup provisioning a folder of templates by date/timestamp and template name defined somewhere
 
 Add - Import (.env) based on config file ****
 Add - make current settings the default profile - save, name 
