@@ -4,6 +4,7 @@
 - node selection
 - list vm/templates
 - all vm/template actions referenced
+- add widgets in kiosk to support if enabled
 
 ### Kiosk Widgets
 - add to widget window Default Configuration "Modify 6)"
