@@ -1,12 +1,4 @@
-echo "   Cores: $cores_config"
-    echo ""
-    echo -n "Create template? [Y/n]: "
-    
-    local confirm
-    read -r confirm
-    confirm=${confirm:-y}
-    
-    if [[ "${confirm,,}" == "y" ]]; then
+if [[ "${confirm,,}" == "y" ]]; then
         echo ""
         log "🏗️  Creating template from image..."
         
@@ -156,10 +148,17 @@ kiosk_clone_vm() {
     memory=$(get_vm_info "$source_vmid" "memory")
     is_template=$(get_vm_info "$source_vmid" "is_template")
     
+    # Get additional details from config
+    local vm_cores="Unknown"
+    if [[ $DRY_RUN -eq 0 ]] && command -v qm >/dev/null 2>&1; then
+        vm_cores=$(qm config "$source_vmid" 2>/dev/null | grep "^cores:" | cut -d' ' -f2 || echo "Unknown")
+    fi
+    
     echo "   VMID: $source_vmid"
     echo "   Name: $vm_name"
     echo "   Type: $([ "$is_template" == "true" ] && echo "📋 Template" || echo "🖥️  VM")"
     echo "   Memory: ${memory}MB"
+    echo "   Cores: $vm_cores"
     
     # Get new VMID
     local suggested_vmid
@@ -177,11 +176,35 @@ kiosk_clone_vm() {
     read -r clone_name
     clone_name=${clone_name:-cloned-vm-$new_vmid}
     
+    # Clone type with smart recommendations
+    echo ""
+    echo "Clone options:"
+    if [[ "$is_template" == "true" ]]; then
+        echo "  1) Full clone (independent copy - ⭐ recommended for templates)"
+        echo "  2) Linked clone (dependent on original - not recommended for templates)"
+    else
+        echo "  1) Full clone (independent copy)"
+        echo "  2) Linked clone (dependent on original - faster but requires source)"
+    fi
+    echo -n "Select clone type [1]: "
+    read -r clone_type
+    clone_type=${clone_type:-1}
+    
+    local full_flag=""
+    local clone_description=""
+    if [[ "$clone_type" == "1" ]]; then
+        full_flag="--full"
+        clone_description="Full clone (independent)"
+    else
+        clone_description="Linked clone (dependent)"
+    fi
+    
     echo ""
     echo "📋 Clone Configuration:"
     echo "   Source VMID: $source_vmid ($([ "$is_template" == "true" ] && echo "📋 Template" || echo "🖥️  VM"))"
     echo "   New VMID: $new_vmid"
     echo "   Name: $clone_name"
+    echo "   Type: $clone_description"
     echo ""
     echo -n "Proceed with cloning? [Y/n]: "
     
@@ -194,28 +217,48 @@ kiosk_clone_vm() {
         log "🔄 Cloning VMID $source_vmid to $new_vmid..."
         
         if [[ $DRY_RUN -eq 1 ]]; then
-            echo "[DRY-RUN] qm clone $source_vmid $new_vmid --name $clone_name --full"
+            echo "[DRY-RUN] qm clone $source_vmid $new_vmid --name $clone_name $full_flag"
         else
             # Set cleanup VMID in case of failure
             CLEANUP_VMID="$new_vmid"
             
             # Perform the clone
-            if qm clone "$source_vmid" "$new_vmid" --name "$clone_name" --full; then
+            if qm clone "$source_vmid" "$new_vmid" --name "$clone_name" $full_flag; then
                 echo "✅ Clone operation completed successfully!"
                 
                 # Clear cleanup VMID on success
                 CLEANUP_VMID=""
                 
-                echo "📋 Template cloned to VM successfully!"
-                echo "   New VM VMID: $new_vmid"
-                echo ""
-                echo -n "Start the new VM now? [y/N]: "
-                read -r start_confirm
-                if [[ "${start_confirm,,}" == "y" ]]; then
-                    if qm start "$new_vmid"; then
-                        echo "✅ VM started successfully!"
+                # Only ask to start if it's not a template
+                if [[ "$is_template" != "true" ]]; then
+                    echo ""
+                    echo -n "Start the cloned VM now? [y/N]: "
+                    read -r start_confirm
+                    if [[ "${start_confirm,,}" == "y" ]]; then
+                        if qm start "$new_vmid"; then
+                            echo "✅ VM started successfully!"
+                            echo "🌐 VM Details:"
+                            echo "   VMID: $new_vmid"
+                            echo "   Name: $clone_name"
+                            echo "   Status: Starting..."
+                        else
+                            echo "⚠️  Clone successful but failed to start VM"
+                        fi
                     else
-                        echo "⚠️  Failed to start VM"
+                        echo "✅ VM cloned successfully (not started)"
+                    fi
+                else
+                    echo "📋 Template cloned to VM successfully!"
+                    echo "   New VM VMID: $new_vmid"
+                    echo ""
+                    echo -n "Start the new VM now? [y/N]: "
+                    read -r start_confirm
+                    if [[ "${start_confirm,,}" == "y" ]]; then
+                        if qm start "$new_vmid"; then
+                            echo "✅ VM started successfully!"
+                        else
+                            echo "⚠️  Failed to start VM"
+                        fi
                     fi
                 fi
             else
@@ -260,10 +303,17 @@ kiosk_delete_vm() {
     status=$(get_vm_info "$delete_vmid" "status")
     is_template=$(get_vm_info "$delete_vmid" "is_template")
     
+    # Get additional details from config
+    local vm_cores="Unknown"
+    if [[ $DRY_RUN -eq 0 ]] && command -v qm >/dev/null 2>&1; then
+        vm_cores=$(qm config "$delete_vmid" 2>/dev/null | grep "^cores:" | cut -d' ' -f2 || echo "Unknown")
+    fi
+    
     echo "   VMID: $delete_vmid"
     echo "   Name: $vm_name"
     echo "   Type: $([ "$is_template" == "true" ] && echo "📋 Template" || echo "🖥️  VM")"
     echo "   Memory: ${memory}MB"
+    echo "   Cores: $vm_cores"
     echo "   Status: $status"
     
     echo ""
@@ -347,8 +397,18 @@ kiosk_settings() {
                 local new_storage
                 read -r new_storage
                 if [[ -n "$new_storage" ]]; then
-                    STORAGE="$new_storage"
-                    echo "✅ Storage updated to: $STORAGE"
+                    # Validate storage if not in dry run
+                    if [[ $DRY_RUN -eq 0 ]]; then
+                        if validate_storage "$new_storage" 2>/dev/null; then
+                            STORAGE="$new_storage"
+                            echo "✅ Storage updated to: $STORAGE"
+                        else
+                            echo "❌ Storage '$new_storage' not found or not available"
+                        fi
+                    else
+                        STORAGE="$new_storage"
+                        echo "✅ Storage updated to: $STORAGE (not validated in dry-run mode)"
+                    fi
                     sleep 2
                 fi
                 ;;
@@ -469,7 +529,7 @@ kiosk_settings() {
     done
 }
 
-# ==================== CORE VM CREATION FUNCTION ====================
+# ========== CORE VM CREATION FUNCTION ==========
 create_template() {
     # Validate inputs with proper error handling
     if [[ -z "$IMAGE" ]]; then
@@ -549,7 +609,7 @@ create_template() {
     CACHE_TIMESTAMP=0
 }
 
-# ==================== HELP FUNCTIONS ====================
+# ========== HELP FUNCTIONS ==========
 show_help() {
     cat <<EOF
 Usage: $0 [options]
@@ -638,7 +698,7 @@ show_examples() {
 EOF
 }
 
-# ==================== MAIN EXECUTION ====================
+# ========== MAIN EXECUTION ==========
 
 # Initialize environment
 check_environment
@@ -773,48 +833,86 @@ if [[ -n "$CLONE_VMID" ]]; then
     fi
     
     # Get new VMID
-    local new_vmid="${#!/usr/bin/env bash
+    local new_vmid="${VMID:-$(get_next_vmid)}"
+    validate_vmid "$new_vmid"
+    
+    # Set name
+    local clone_name="${VM_NAME:-cloned-vm-$new_vmid}"
+    
+    log "🔄 Cloning VMID $CLONE_VMID to $new_vmid..."
+    
+    if [[ $DRY_RUN -eq 1 ]]; then
+        echo "[DRY-RUN] qm clone $CLONE_VMID $new_vmid --name $clone_name --full"
+    else
+        CLEANUP_VMID="$new_vmid"
+        
+        if qm clone "$CLONE_VMID" "$new_vmid" --name "$clone_name" --full; then
+            log "✅ Clone operation completed successfully!"
+            CLEANUP_VMID=""  # Clear on success
+            
+            # Handle replicas
+            for (( i=1; i<=REPLICA; i++ )); do
+                local replica_vmid
+                replica_vmid=$(get_next_vmid)
+                validate_vmid "$replica_vmid"
+                
+                log "🔄 Creating replica $i/$REPLICA (VMID: $replica_vmid)..."
+                if qm clone "$CLONE_VMID" "$replica_vmid" --name "${clone_name}-replica-$i" --full; then
+                    log "✅ Replica $i created successfully"
+                else
+                    log "❌ Failed to create replica $i"
+                fi
+            done
+        else
+            error_exit "Clone operation failed"
+        fi
+    fi
+    exit 0
+fi
+
+# If we get here, either create template/VM or show help
+if [[ -n "$IMAGE" ]]; then
+    create_template
+else
+    log "❌ No action specified. Use --help for usage information."
+    show_help
+    exit 1
+fi#!/usr/bin/env bash
 set -euo pipefail
 
-# ==================== PROXMOX TEMPLATE PROVISIONER ====================
-# A comprehensive script for managing Proxmox VM templates and provisioning
-# Author: Enhanced by Claude AI
-# Version: 2.0
-# ========================================================================
-
-# Global variables
-LOG_FILE="/var/log/provision.log"
-SCRIPT_PID=$$
-CLEANUP_VMID=""
-TEMP_FILES=()
+# ========== GLOBAL VARIABLES ==========
+declare -g LOG_FILE="/var/log/provision.log"
+declare -g SCRIPT_PID="$"
+declare -g CLEANUP_VMID=""
+declare -a TEMP_FILES=()
 
 # Configuration defaults
-TEMPLATE_DEFAULT_VMID=9800
-STORAGE="local-lvm"
-CI_USER="ubuntu"
-CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
-CI_VENDOR_SNIPPET="local:snippets/vendor.yaml"
-CI_TAGS="ubuntu-template,24.04,cloudinit"
-CI_BOOT_ORDER="virtio0"
-IMAGE_SIZE="40G"
-DEFAULT_CORES=1
-DEFAULT_MEMORY=2048
-DEFAULT_SOCKETS=1
-DEFAULT_OSTYPE="l26"
-DEFAULT_BIOS="ovmf"
-DEFAULT_MACHINE="q35"
-DEFAULT_CPU="host"
-DEFAULT_VGA="serial0"
-DEFAULT_SERIAL0="socket"
-KIOSK_MODE=false
-DRY_RUN=0
+declare -g TEMPLATE_DEFAULT_VMID=9800
+declare -g STORAGE="local-lvm"
+declare -g CI_USER="ubuntu"
+declare -g CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
+declare -g CI_VENDOR_SNIPPET="local:snippets/vendor.yaml"
+declare -g CI_TAGS="ubuntu-template,24.04,cloudinit"
+declare -g CI_BOOT_ORDER="virtio0"
+declare -g IMAGE_SIZE="40G"
+declare -g DEFAULT_CORES=1
+declare -g DEFAULT_MEMORY=2048
+declare -g DEFAULT_SOCKETS=1
+declare -g DEFAULT_OSTYPE="l26"
+declare -g DEFAULT_BIOS="ovmf"
+declare -g DEFAULT_MACHINE="q35"
+declare -g DEFAULT_CPU="host"
+declare -g DEFAULT_VGA="serial0"
+declare -g DEFAULT_SERIAL0="socket"
+declare -g KIOSK_MODE=false
+declare -g DRY_RUN=0
 
 # VM info cache
 declare -A VM_INFO_CACHE
-CACHE_TIMESTAMP=0
-CACHE_TTL=30
+declare -g CACHE_TIMESTAMP=0
+declare -g CACHE_TTL=30  # 30 seconds
 
-# ==================== CLEANUP & ERROR HANDLING ====================
+# ========== CLEANUP & ERROR HANDLING ==========
 cleanup() {
     local exit_code=$?
     
@@ -855,7 +953,7 @@ error_exit() {
 trap cleanup EXIT
 trap 'error_exit "Script interrupted"' INT TERM
 
-# ==================== ENVIRONMENT CHECKS ====================
+# ========== PRIVILEGE & ENVIRONMENT CHECKS ==========
 check_environment() {
     # Check if running as root
     if [[ $EUID -ne 0 ]]; then
@@ -880,12 +978,12 @@ check_environment() {
     # Check available disk space (at least 10GB)
     local available_space
     available_space=$(df /var/lib/vz 2>/dev/null | awk 'NR==2 {print $4}' 2>/dev/null || echo "0")
-    if [[ $available_space -lt 10485760 ]]; then
+    if [[ $available_space -lt 10485760 ]]; then  # 10GB in KB
         log "⚠️  Warning: Low disk space available (less than 10GB)"
     fi
 }
 
-# ==================== CONFIGURATION LOADING ====================
+# ========== CONFIGURATION LOADING ==========
 load_configuration() {
     # Load environment configuration with proper precedence
     if [[ -f ".env" ]]; then
@@ -901,14 +999,14 @@ load_configuration() {
     fi
 }
 
-# ==================== LOGGING ====================
+# ========== LOGGING ==========
 log() {
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     echo "[$timestamp] $*" | tee -a "$LOG_FILE"
 }
 
-# ==================== INPUT VALIDATION ====================
+# ========== INPUT VALIDATION ==========
 validate_vmid() {
     local vmid="$1"
     
@@ -935,7 +1033,7 @@ validate_memory() {
     if ! [[ "$memory" =~ ^[0-9]+$ ]]; then
         error_exit "Invalid memory value: $memory (must be numeric)"
     fi
-    if [[ $memory -lt 128 ]] || [[ $memory -gt 1048576 ]]; then
+    if [[ $memory -lt 128 ]] || [[ $memory -gt 1048576 ]]; then  # 128MB to 1TB
         error_exit "Memory $memory out of valid range (128-1048576 MB)"
     fi
 }
@@ -978,7 +1076,7 @@ validate_url() {
     fi
 }
 
-# ==================== VM INFO CACHING ====================
+# ========== VM INFO CACHING ==========
 should_refresh_cache() {
     local current_time
     current_time=$(date +%s)
@@ -1063,7 +1161,7 @@ get_all_vmids() {
     printf '%s\n' "${vmids[@]}" | sort -n
 }
 
-# ==================== UTILITY FUNCTIONS ====================
+# ========== UTILITY FUNCTIONS ==========
 run_or_dry() {
     if [[ $DRY_RUN -eq 1 ]]; then
         echo "[DRY-RUN] $*"
@@ -1161,7 +1259,7 @@ EOF
     fi
 }
 
-# ==================== KIOSK MODE FUNCTIONS ====================
+# ========== KIOSK MODE FUNCTIONS ==========
 clear_screen() {
     clear
     echo "╔══════════════════════════════════════════════════════════════════════════════╗"
@@ -1211,7 +1309,7 @@ kiosk_pause() {
     read -r
 }
 
-# ==================== IMAGE DISCOVERY ====================
+# ========== IMAGE DISCOVERY ==========
 discover_images() {
     local -a image_list=()
     local -a image_display=()
@@ -1318,7 +1416,7 @@ select_image() {
     fi
 }
 
-# ==================== PAGINATED VM LISTING ====================
+# ========== PAGINATED VM LISTING ==========
 paginated_vm_list() {
     local action_type="$1"  # "clone", "delete", "list"
     local selected_vmid=""
@@ -1487,7 +1585,7 @@ paginated_vm_list() {
     done
 }
 
-# ==================== KIOSK MENU FUNCTIONS ====================
+# ========== KIOSK MENU FUNCTIONS ==========
 kiosk_menu() {
     while true; do
         clear_screen
@@ -1587,4 +1685,11 @@ kiosk_create_template() {
     echo "   VMID: $vmid_input"
     echo "   Name: $name_input"
     echo "   Storage: $storage_config"
-    echo "   Memory: ${memory_config}MB
+    echo "   Memory: ${memory_config}MB"
+    echo "   Cores: $cores_config"
+    echo ""
+    echo -n "Create template? [Y/n]: "
+    
+    local confirm
+    read -r confirm
+    confirm=${confirm:-y}
