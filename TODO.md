@@ -6,6 +6,10 @@
 - all vm/template actions referenced
 - add widgets in kiosk to support if enabled
 ---
+### Kiosk Current Status
+- add Storage Locations
+- add Networks
+- add Proxmox OS version info:
 
 ### Kiosk Widgets
 - add to widget window Default Configuration "Modify 6)"
