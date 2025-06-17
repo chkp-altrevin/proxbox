@@ -62,7 +62,9 @@ qm create 134 --name windows-server-2022 --memory 8192 --net0 model=virtio,bridg
 3. create custom template
 qm create <vmid> --name <vmname> --memory <memory_mb> --net0 <network_config> --ostype win<version> --scsi0 <storage>:<disk_size> --cdrom <iso_storage>:<iso_file> --sockets <sockets> --cores <cores> --bios <bios> --machine <machine_type> --boot <boot_order>
 
+```
 Explanation of Parameters:
+
 <vmid>: A unique numerical ID for the VM (e.g., 101).
 --name <vmname>: The name of the VM (e.g., "windows-server-2022").
 --memory <memory_mb>: RAM in megabytes (e.g., 4096 for 4GB).
@@ -75,7 +77,7 @@ Explanation of Parameters:
 --bios <bios>: BIOS type, usually ovmf for UEFI.
 --machine <machine_type>: Machine type, usually q35.
 --boot <boot_order>: Boot order, usually order=scsi0;cdrom0
-
+```
 
 ## References
 
