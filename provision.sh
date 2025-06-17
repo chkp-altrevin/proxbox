@@ -171,7 +171,7 @@ validate_storage() {
 validate_filename() {
     local filename="$1"
     # Check for path traversal and dangerous characters
-    if [[ "$filename" =~ \.\./|^/|[\|\;\&\$\`\\] ]]; then
+    if [[ "$filename" =~ \.\./|^/ ]] || [[ "$filename" =~ [\|\;\&\$\`\\] ]]; then
         error_exit "Invalid or potentially dangerous filename: $filename"
     fi
 }
