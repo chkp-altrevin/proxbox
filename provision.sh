@@ -275,6 +275,7 @@ kiosk_clone_vm() {
 
 kiosk_list_vms() {
     paginated_vm_list "list"
+    # Always pause and return to menu regardless of paginated_vm_list return code
     kiosk_pause
 }
 
@@ -1554,7 +1555,11 @@ paginated_vm_list() {
                 fi
                 ;;
             q|quit)
-                return 1
+                if [[ "$action_type" == "list" ]]; then
+                    return 0  # Return success for list mode
+                else
+                    return 1  # Return failure for clone/delete modes
+                fi
                 ;;
             [0-9]*)
                 if [[ "$action_type" != "list" ]] && [[ "$action" =~ ^[0-9]+$ ]]; then
