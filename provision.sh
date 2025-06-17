@@ -798,163 +798,142 @@ kiosk_clone_vm() {
 
 kiosk_list_vms() {
     clear_screen
-    echo "📋 All VMs and Templates"
+    echo "📋 List All VMs/Templates"
     echo ""
     
-    if command -v qm &>/dev/null; then
-        # Get full list without limiting
-        local vm_list
-        vm_list=$(qm list)
-        
-        if [[ -n "$vm_list" ]]; then
-            # Get all VMIDs first
-            local vmids
-            vmids=($(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}'))
-            
-            # Build template detection in batch - much faster approach
-            local template_map=()
-            
-            # Method 1: Check template flag in one go using directory listing (fastest)
-            if [[ -d "/etc/pve/qemu-server" ]]; then
-                for vmid in "${vmids[@]}"; do
-                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
-                        if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-                            template_map["$vmid"]="true"
-                        else
-                            template_map["$vmid"]="false"
-                        fi
-                    else
-                        template_map["$vmid"]="false"
-                    fi
-                done
-            else
-                # Fallback: Use pvesm if config directory not accessible
-                local template_list
-                template_list=$(pvesh get /cluster/resources --type vm --output-format json 2>/dev/null | jq -r '.[] | select(.template==1) | .vmid' 2>/dev/null || echo "")
-                
-                # Initialize all as non-templates
-                for vmid in "${vmids[@]}"; do
-                    template_map["$vmid"]="false"
-                done
-                
-                # Mark templates
-                if [[ -n "$template_list" ]]; then
-                    while read -r template_vmid; do
-                        if [[ -n "$template_vmid" ]]; then
-                            template_map["$template_vmid"]="true"
-                        fi
-                    done <<< "$template_list"
-                fi
-            fi
-            
-            # Pagination setup
-            local page=1
-            local items_per_page=20
-            local total_count=${#vmids[@]}
-            local total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
-            
-            # Pagination display loop
-            while true; do
-                clear_screen
-                echo "📋 All VMs and Templates"
-                echo ""
-                
-                # Calculate start and end indices for current page
-                local start_idx=$(( (page - 1) * items_per_page ))
-                local end_idx=$(( start_idx + items_per_page - 1 ))
-                if [[ $end_idx -ge $total_count ]]; then
-                    end_idx=$(( total_count - 1 ))
-                fi
-                
-                # Show header
-                echo "$vm_list" | head -1
-                
-                # Display current page items
-                for (( i=start_idx; i<=end_idx; i++ )); do
-                    if [[ $i -lt ${#vmids[@]} ]]; then
-                        local vmid="${vmids[$i]}"
-                        local vm_line
-                        vm_line=$(echo "$vm_list" | awk -v vmid="$vmid" '$1 == vmid {print $0}')
-                        
-                        if [[ "${template_map[$vmid]}" == "true" ]]; then
-                            echo "   $vm_line (📋 Template)"
-                        else
-                            echo "   $vm_line (🖥️  VM)"
-                        fi
-                    fi
-                done
-                
-                echo ""
-                echo "📊 Page $page of $total_pages (Total: $total_count items)"
-                
-                # Count templates and VMs for summary
-                local template_count=0
-                local vm_count=0
-                for vmid in "${vmids[@]}"; do
-                    if [[ "${template_map[$vmid]}" == "true" ]]; then
-                        ((template_count++))
-                    else
-                        ((vm_count++))
-                    fi
-                done
-                echo "📈 Summary: $vm_count VMs, $template_count Templates"
-                echo ""
-                echo "Legend: 🖥️  = Virtual Machine, 📋 = Template"
-                echo ""
-                
-                # Navigation options
-                local nav_options="Navigation: "
-                if [[ $page -gt 1 ]]; then
-                    nav_options+="[P]revious  "
-                fi
-                if [[ $page -lt $total_pages ]]; then
-                    nav_options+="[N]ext  "
-                fi
-                nav_options+="[Q]uit"
-                
-                echo "$nav_options"
-                echo ""
-                echo -n "Choose action: "
-                
-                local action
-                read -r action
-                action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
-                
-                case "$action" in
-                    p|prev|previous)
-                        if [[ $page -gt 1 ]]; then
-                            ((page--))
-                        else
-                            echo "❌ Already on first page"
-                            sleep 1
-                        fi
-                        ;;
-                    n|next)
-                        if [[ $page -lt $total_pages ]]; then
-                            ((page++))
-                        else
-                            echo "❌ Already on last page"
-                            sleep 1
-                        fi
-                        ;;
-                    q|quit)
-                        break  # Exit pagination loop
-                        ;;
-                    *)
-                        echo "❌ Invalid option. Use P (previous), N (next), or Q (quit)"
-                        sleep 2
-                        ;;
-                esac
-            done
-        else
-            echo "❌ No VMs or templates found"
-        fi
-    else
-        echo "❌ Proxmox tools not available"
+    if ! build_vm_info_cache; then
+        echo "❌ Unable to retrieve VM information"
+        kiosk_pause
+        return
     fi
     
-    kiosk_pause
+    local -a vmids
+    mapfile -t vmids < <(get_all_vmids)
+    
+    if [[ ${#vmids[@]} -eq 0 ]]; then
+        echo "❌ No VMs or templates found"
+        kiosk_pause
+        return
+    fi
+    
+    # Pagination setup
+    local page=1
+    local items_per_page=20
+    local total_count=${#vmids[@]}
+    local total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
+    
+    while true; do
+        clear_screen
+        echo "📋 All VMs and Templates"
+        echo ""
+        
+        # Calculate start and end indices for current page
+        local start_idx=$(( (page - 1) * items_per_page ))
+        local end_idx=$(( start_idx + items_per_page - 1 ))
+        if [[ $end_idx -ge $total_count ]]; then
+            end_idx=$(( total_count - 1 ))
+        fi
+        
+        # Show header
+        printf "   %-8s %-20s %-12s %-8s %s\n" "VMID" "NAME" "STATUS" "MEMORY" "TYPE"
+        printf "   %s\n" "$(printf '%*s' 60 '' | tr ' ' '-')"
+        
+        # Display current page items
+        for (( i=start_idx; i<=end_idx; i++ )); do
+            local vmid="${vmids[$i]}"
+            local name status memory is_template
+            name=$(get_vm_info "$vmid" "name")
+            status=$(get_vm_info "$vmid" "status")
+            memory=$(get_vm_info "$vmid" "memory")
+            is_template=$(get_vm_info "$vmid" "is_template")
+            
+            local type_display="🖥️  VM"
+            if [[ "$is_template" == "true" ]]; then
+                type_display="📋 Template"
+            fi
+            
+            printf "   %-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
+        done
+        
+        echo ""
+        echo "📊 Page $page of $total_pages (Total: $total_count items)"
+        
+        # Count summary
+        local template_count=0 vm_count=0
+        for vmid in "${vmids[@]}"; do
+            if [[ "$(get_vm_info "$vmid" "is_template")" == "true" ]]; then
+                ((template_count++))
+            else
+                ((vm_count++))
+            fi
+        done
+        echo "📈 Summary: $vm_count VMs, $template_count Templates"
+        
+        echo ""
+        
+        # Navigation options
+        local nav_options="Navigation: "
+        if [[ $page -gt 1 ]]; then
+            nav_options+="[P]revious  "
+        fi
+        if [[ $page -lt $total_pages ]]; then
+            nav_options+="[N]ext  "
+        fi
+        nav_options+="[R]efresh  [Q]uit"
+        
+        echo "$nav_options"
+        echo ""
+        echo -n "Choose action: "
+        
+        local action
+        read -r action
+        action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+        
+        case "$action" in
+            p|prev|previous)
+                if [[ $page -gt 1 ]]; then
+                    ((page--))
+                else
+                    echo "❌ Already on first page"
+                    sleep 1
+                fi
+                ;;
+            n|next)
+                if [[ $page -lt $total_pages ]]; then
+                    ((page++))
+                else
+                    echo "❌ Already on last page"
+                    sleep 1
+                fi
+                ;;
+            r|refresh)
+                # Force cache refresh
+                CACHE_TIMESTAMP=0
+                if ! build_vm_info_cache; then
+                    echo "❌ Unable to refresh VM information"
+                    sleep 2
+                else
+                    # Rebuild vmids array with fresh data
+                    mapfile -t vmids < <(get_all_vmids)
+                    total_count=${#vmids[@]}
+                    total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
+                    # Reset to page 1 if current page is now out of range
+                    if [[ $page -gt $total_pages ]]; then
+                        page=1
+                    fi
+                fi
+                ;;
+            q|quit|"")
+                return  # Return to main menu
+                ;;
+            *)
+                echo "❌ Invalid option"
+                sleep 2
+                ;;
+        esac
+    done
 }
+
 
 kiosk_delete_vm() {
     clear_screen
