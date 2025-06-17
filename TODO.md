@@ -55,6 +55,8 @@ Add - Import (.env) based on config file ****
 Add - make current settings the default profile - save, name 
 qm create <vmid> [options]
 
+Add - enable/disable cloud-init from "option to create vm from image
+
 Option: ?? for creating vm from image, use a predefined template to speed things up:
 
 1. linux vm template
