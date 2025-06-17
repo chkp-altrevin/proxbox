@@ -399,27 +399,28 @@ show_current_status() {
     echo "   Dry Run: $([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")"
     echo ""
     
-    # Show recent VMs/Templates
+    # Show recent VMs/Templates - simplified to avoid function dependency issues
     echo "📋 Recent VMs/Templates:"
-    if build_vm_info_cache; then
-        local count=0
-        while IFS= read -r vmid; do
-            if [[ $count -ge 5 ]]; then break; fi
-            local name status is_template
-            name=$(get_vm_info "$vmid" "name")
-            status=$(get_vm_info "$vmid" "status")
-            is_template=$(get_vm_info "$vmid" "is_template")
-            
-            local type_icon="🖥️ "
-            if [[ "$is_template" == "true" ]]; then
-                type_icon="📋"
-            fi
-            
-            printf "   %s %s %-20s %s\n" "$type_icon" "$vmid" "$name" "$status"
-            ((count++))
-        done < <(get_all_vmids | tail -5)
+    if command -v qm >/dev/null 2>&1; then
+        # Simple qm list without cache dependency
+        local vm_list
+        vm_list=$(qm list 2>/dev/null | tail -n +2 | tail -5)
+        if [[ -n "$vm_list" ]]; then
+            echo "$vm_list" | while read -r vmid name status memory; do
+                if [[ -n "$vmid" ]] && [[ "$vmid" =~ ^[0-9]+$ ]]; then
+                    local type_icon="🖥️ "
+                    # Simple template check
+                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                        type_icon="📋"
+                    fi
+                    printf "   %s %s %-20s %s\n" "$type_icon" "$vmid" "$name" "$status"
+                fi
+            done
+        else
+            echo "   ⚠️  No VMs found"
+        fi
     else
-        echo "   ⚠️  Unable to retrieve VM information"
+        echo "   ⚠️  Proxmox tools not available"
     fi
     echo ""
 }
