@@ -1693,3 +1693,4 @@ kiosk_create_template() {
     local confirm
     read -r confirm
     confirm=${confirm:-y}
+    
