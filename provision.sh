@@ -20,7 +20,7 @@ if [[ "${confirm,,}" == "y" ]]; then
         echo "   Ready for cloning!"
         kiosk_pause
     fi
-
+}
 
 kiosk_provision_vm() {
     clear_screen
