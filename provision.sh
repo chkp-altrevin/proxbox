@@ -1137,87 +1137,115 @@ kiosk_clone_vm() {
     fi
 }
 
-# Fixed kiosk_list_vms function - completely isolated and error-safe
+# Fixed kiosk_list_vms function - bulletproof version with error isolation
 kiosk_list_vms() {
+    # Temporarily disable strict error handling to prevent script exit
+    set +e
+    
     clear_screen
     echo "📋 All VMs and Templates"
     echo ""
     
-    # Simple, direct VM listing without complex caching
+    # Check if qm command exists
     if ! command -v qm >/dev/null 2>&1; then
         echo "❌ Proxmox tools not available"
-        kiosk_pause
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        set -e  # Re-enable strict error handling
         return 0
     fi
     
+    # Get VM list with error handling
     local vm_list
-    vm_list=$(qm list 2>/dev/null || echo "")
+    vm_list=$(qm list 2>/dev/null)
+    local qm_exit_code=$?
     
-    if [[ -z "$vm_list" ]]; then
-        echo "❌ No VMs or templates found"
-        kiosk_pause
+    if [[ $qm_exit_code -ne 0 ]] || [[ -z "$vm_list" ]]; then
+        echo "❌ Unable to retrieve VM list"
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        set -e  # Re-enable strict error handling
         return 0
     fi
     
-    # Parse and display VM list
+    # Display header
     echo "   VMID     NAME                 STATUS       MEMORY   TYPE"
     echo "   ------------------------------------------------------------"
     
+    # Initialize counters
     local template_count=0
     local vm_count=0
     local total_count=0
     
-    # Process VM list line by line, skipping header
-    echo "$vm_list" | tail -n +2 | while read -r vmid name status memory rest; do
-        if [[ -n "$vmid" ]] && [[ "$vmid" =~ ^[0-9]+$ ]]; then
-            local type_display="🖥️  VM"
-            
-            # Check if it's a template - simple file check
-            if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
-                if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-                    type_display="📋 Template"
-                fi
-            fi
-            
-            printf "   %-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
+    # Process each line safely
+    while IFS= read -r line; do
+        # Skip header line
+        if [[ "$line" =~ ^[[:space:]]*VMID ]]; then
+            continue
         fi
-    done
-    
-    # Count totals separately to avoid subshell issues
-    while read -r vmid name status memory rest; do
-        if [[ -n "$vmid" ]] && [[ "$vmid" =~ ^[0-9]+$ ]]; then
-            ((total_count++))
-            if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+        
+        # Extract fields safely
+        local vmid name status memory
+        read -r vmid name status memory rest <<< "$line"
+        
+        # Validate VMID
+        if [[ ! "$vmid" =~ ^[0-9]+$ ]]; then
+            continue
+        fi
+        
+        # Determine type safely
+        local type_display="🖥️  VM"
+        if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
+            if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                type_display="📋 Template"
                 ((template_count++))
             else
                 ((vm_count++))
             fi
+        else
+            ((vm_count++))
         fi
-    done < <(echo "$vm_list" | tail -n +2)
+        
+        ((total_count++))
+        
+        # Display VM info
+        printf "   %-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
+        
+    done <<< "$vm_list"
     
+    # Show summary
     echo ""
     echo "📈 Summary: $vm_count VMs, $template_count Templates (Total: $total_count)"
     echo ""
-    echo "Navigation: [R]efresh  [Q]uit"
+    echo "Options: [R]efresh  [Q]uit to main menu"
     echo ""
     
+    # Menu loop with error isolation
     while true; do
         echo -n "Choose action: "
         local action
-        read -r action
-        action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+        if ! read -r action; then
+            # Handle read error
+            action="q"
+        fi
+        
+        action=$(echo "$action" | tr '[:upper:]' '[:lower:]' 2>/dev/null || echo "q")
         
         case "$action" in
             r|refresh)
-                # Simply call this function again for refresh
-                kiosk_list_vms
+                set -e  # Re-enable strict error handling
+                kiosk_list_vms  # Recursive call for refresh
                 return 0
                 ;;
             q|quit|"")
+                set -e  # Re-enable strict error handling
                 return 0
                 ;;
             *)
                 echo "❌ Invalid option. Use 'r' to refresh or 'q' to quit."
+                sleep 1
                 ;;
         esac
     done
