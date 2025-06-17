@@ -881,7 +881,7 @@ set -euo pipefail
 
 # ========== GLOBAL VARIABLES ==========
 declare -g LOG_FILE="/var/log/provision.log"
-declare -g SCRIPT_PID=$$
+declare -g SCRIPT_PID="$"
 declare -g CLEANUP_VMID=""
 declare -a TEMP_FILES=()
 
