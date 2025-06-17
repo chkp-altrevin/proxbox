@@ -53,7 +53,7 @@ cleanup() {
 
 cleanup_failed_vm() {
     local vmid="$1"
-    if [[ $DRY_RUN -eq 0 ]] && command -v qm &>/dev/null && qm status "$vmid" &>/dev/null; then
+    if [[ $DRY_RUN -eq 0 ]] && command -v qm >/dev/null 2>&1 && qm status "$vmid" >/dev/null 2>&1; then
         log "🧹 Cleaning up failed VM $vmid"
         qm stop "$vmid" 2>/dev/null || true
         qm destroy "$vmid" --purge 2>/dev/null || true
@@ -85,7 +85,7 @@ check_environment() {
     # Check for required commands
     local required_commands=("qm" "pvesm" "qemu-img")
     for cmd in "${required_commands[@]}"; do
-        if ! command -v "$cmd" &>/dev/null; then
+        if ! command -v "$cmd" >/dev/null 2>&1; then
             error_exit "Required command not found: $cmd"
         fi
     done
@@ -136,7 +136,7 @@ validate_vmid() {
     fi
     
     # Check if already exists (always validate, even in dry-run)
-    if command -v qm &>/dev/null && qm status "$vmid" &>/dev/null; then
+    if command -v qm >/dev/null 2>&1 && qm status "$vmid" >/dev/null 2>&1; then
         error_exit "VMID $vmid already exists"
     fi
 }
@@ -163,7 +163,7 @@ validate_cores() {
 
 validate_storage() {
     local storage="$1"
-    if [[ $DRY_RUN -eq 0 ]] && ! pvesm status "$storage" &>/dev/null; then
+    if [[ $DRY_RUN -eq 0 ]] && ! pvesm status "$storage" >/dev/null 2>&1; then
         error_exit "Storage '$storage' not found or not available"
     fi
 }
@@ -201,7 +201,7 @@ build_vm_info_cache() {
     unset VM_INFO_CACHE
     declare -gA VM_INFO_CACHE
     
-    if ! command -v qm &>/dev/null; then
+    if ! command -v qm >/dev/null 2>&1; then
         log "⚠️  Proxmox tools not available for caching"
         return 1
     fi
@@ -278,7 +278,7 @@ run_or_dry() {
 }
 
 get_next_vmid() {
-    if command -v pvesh &>/dev/null; then
+    if command -v pvesh >/dev/null 2>&1; then
         local next_id
         next_id=$(pvesh get /cluster/nextid 2>/dev/null || echo "")
         if [[ -n "$next_id" ]] && [[ "$next_id" =~ ^[0-9]+$ ]]; then
@@ -412,7 +412,7 @@ if [[ -n "$DELETE_VMID" ]]; then
     
     log "⚠️  Deleting VMID: $DELETE_VMID"
     
-    if [[ $DRY_RUN -eq 0 ]] && ! qm status "$DELETE_VMID" &>/dev/null; then
+    if [[ $DRY_RUN -eq 0 ]] && ! qm status "$DELETE_VMID" >/dev/null 2>&1; then
         error_exit "VMID $DELETE_VMID not found"
     fi
     
@@ -445,7 +445,7 @@ if [[ -n "$CLONE_VMID" ]]; then
     validate_vmid "$CLONE_VMID"
     
     # Validate source exists
-    if [[ $DRY_RUN -eq 0 ]] && ! qm status "$CLONE_VMID" &>/dev/null; then
+    if [[ $DRY_RUN -eq 0 ]] && ! qm status "$CLONE_VMID" >/dev/null 2>&1; then
         error_exit "Source VMID $CLONE_VMID not found"
     fi
     
@@ -553,7 +553,7 @@ discover_images() {
     done
     
     # Also check using pvesm if available
-    if command -v pvesm &>/dev/null; then
+    if command -v pvesm >/dev/null 2>&1; then
         while IFS= read -r line; do
             if [[ "$line" =~ ^([^:]+):(.+)$ ]]; then
                 local storage="${BASH_REMATCH[1]}"
@@ -1032,7 +1032,7 @@ kiosk_clone_vm() {
     
     # Get additional details from config
     local vm_cores="Unknown"
-    if [[ $DRY_RUN -eq 0 ]] && command -v qm &>/dev/null; then
+    if [[ $DRY_RUN -eq 0 ]] && command -v qm >/dev/null 2>&1; then
         vm_cores=$(qm config "$source_vmid" 2>/dev/null | grep "^cores:" | cut -d' ' -f2 || echo "Unknown")
     fi
     
@@ -1186,7 +1186,7 @@ kiosk_delete_vm() {
     
     # Get additional details from config
     local vm_cores="Unknown"
-    if [[ $DRY_RUN -eq 0 ]] && command -v qm &>/dev/null; then
+    if [[ $DRY_RUN -eq 0 ]] && command -v qm >/dev/null 2>&1; then
         vm_cores=$(qm config "$delete_vmid" 2>/dev/null | grep "^cores:" | cut -d' ' -f2 || echo "Unknown")
     fi
     
