@@ -1,8 +1,4 @@
-if [[ "${confirm,,}" == "y" ]]; then
-        echo ""
-        log "🏗️  Creating template from image..."
-        
-        # Set variables for create_template function
+# Set variables for create_template function
         IMAGE="$image_input"
         VMID="$vmid_input"
         VM_NAME="$name_input"
@@ -768,149 +764,40 @@ if [[ $LIST_VMIDS -eq 1 ]]; then
             name=$(get_vm_info "$vmid" "name")
             status=$(get_vm_info "$vmid" "status")
             memory=$(get_vm_info "$vmid" "memory")
-            is_template=$(get_vm_info "$vmid" "is_template")
-            
-            local type_display="🖥️  VM"
-            if [[ "$is_template" == "true" ]]; then
-                type_display="📋 Template"
-            fi
-            
-            printf "%-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
-        done < <(get_all_vmids)
-    else
-        echo "❌ Unable to retrieve VM information"
-        exit 1
-    fi
-    exit 0
-fi
-
-if [[ -n "$DELETE_VMID" ]]; then
-    validate_vmid "$DELETE_VMID"
-    
-    log "⚠️  Deleting VMID: $DELETE_VMID"
-    
-    if [[ $DRY_RUN -eq 0 ]]; then
-        if ! qm status "$DELETE_VMID" >/dev/null 2>&1; then
-            error_exit "VMID $DELETE_VMID not found"
-        fi
-    fi
-    
-    if [[ $DRY_RUN -eq 1 ]]; then
-        echo "[DRY-RUN] qm stop $DELETE_VMID"
-        echo "[DRY-RUN] qm destroy $DELETE_VMID $([ $PURGE_DELETE -eq 1 ] && echo "--purge")"
-    else
-        # Stop VM if running
-        local vm_status
-        vm_status=$(qm status "$DELETE_VMID" 2>/dev/null | awk '{print $2}' || echo "stopped")
-        if [[ "$vm_status" == "running" ]]; then
-            log "🛑 Stopping VM..."
-            qm stop "$DELETE_VMID" || log "⚠️  Failed to stop VM gracefully"
-        fi
-        
-        # Delete VM
-        local destroy_args=("$DELETE_VMID")
-        if [[ $PURGE_DELETE -eq 1 ]]; then
-            destroy_args+=("--purge")
-        fi
-        
-        if qm destroy "${destroy_args[@]}"; then
-            log "✅ VMID $DELETE_VMID deleted successfully"
-        else
-            error_exit "Failed to delete VMID $DELETE_VMID"
-        fi
-    fi
-    exit 0
-fi
-
-if [[ -n "$CLONE_VMID" ]]; then
-    validate_vmid "$CLONE_VMID"
-    
-    # Validate source exists
-    if [[ $DRY_RUN -eq 0 ]]; then
-        if ! qm status "$CLONE_VMID" >/dev/null 2>&1; then
-            error_exit "Source VMID $CLONE_VMID not found"
-        fi
-    fi
-    
-    # Get new VMID
-    local new_vmid="${VMID:-$(get_next_vmid)}"
-    validate_vmid "$new_vmid"
-    
-    # Set name
-    local clone_name="${VM_NAME:-cloned-vm-$new_vmid}"
-    
-    log "🔄 Cloning VMID $CLONE_VMID to $new_vmid..."
-    
-    if [[ $DRY_RUN -eq 1 ]]; then
-        echo "[DRY-RUN] qm clone $CLONE_VMID $new_vmid --name $clone_name --full"
-    else
-        CLEANUP_VMID="$new_vmid"
-        
-        if qm clone "$CLONE_VMID" "$new_vmid" --name "$clone_name" --full; then
-            log "✅ Clone operation completed successfully!"
-            CLEANUP_VMID=""  # Clear on success
-            
-            # Handle replicas
-            for (( i=1; i<=REPLICA; i++ )); do
-                local replica_vmid
-                replica_vmid=$(get_next_vmid)
-                validate_vmid "$replica_vmid"
-                
-                log "🔄 Creating replica $i/$REPLICA (VMID: $replica_vmid)..."
-                if qm clone "$CLONE_VMID" "$replica_vmid" --name "${clone_name}-replica-$i" --full; then
-                    log "✅ Replica $i created successfully"
-                else
-                    log "❌ Failed to create replica $i"
-                fi
-            done
-        else
-            error_exit "Clone operation failed"
-        fi
-    fi
-    exit 0
-fi
-
-# If we get here, either create template/VM or show help
-if [[ -n "$IMAGE" ]]; then
-    create_template
-else
-    log "❌ No action specified. Use --help for usage information."
-    show_help
-    exit 1
-fi#!/usr/bin/env bash
+            is_template=$(#!/usr/bin/env bash
 set -euo pipefail
 
-# ========== GLOBAL VARIABLES ==========
-declare -g LOG_FILE="/var/log/provision.log"
-declare -g SCRIPT_PID="$"
-declare -g CLEANUP_VMID=""
-declare -a TEMP_FILES=()
+# Global variables
+LOG_FILE="/var/log/provision.log"
+SCRIPT_PID=$$
+CLEANUP_VMID=""
+TEMP_FILES=()
 
 # Configuration defaults
-declare -g TEMPLATE_DEFAULT_VMID=9800
-declare -g STORAGE="local-lvm"
-declare -g CI_USER="ubuntu"
-declare -g CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
-declare -g CI_VENDOR_SNIPPET="local:snippets/vendor.yaml"
-declare -g CI_TAGS="ubuntu-template,24.04,cloudinit"
-declare -g CI_BOOT_ORDER="virtio0"
-declare -g IMAGE_SIZE="40G"
-declare -g DEFAULT_CORES=1
-declare -g DEFAULT_MEMORY=2048
-declare -g DEFAULT_SOCKETS=1
-declare -g DEFAULT_OSTYPE="l26"
-declare -g DEFAULT_BIOS="ovmf"
-declare -g DEFAULT_MACHINE="q35"
-declare -g DEFAULT_CPU="host"
-declare -g DEFAULT_VGA="serial0"
-declare -g DEFAULT_SERIAL0="socket"
-declare -g KIOSK_MODE=false
-declare -g DRY_RUN=0
+TEMPLATE_DEFAULT_VMID=9800
+STORAGE="local-lvm"
+CI_USER="ubuntu"
+CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
+CI_VENDOR_SNIPPET="local:snippets/vendor.yaml"
+CI_TAGS="ubuntu-template,24.04,cloudinit"
+CI_BOOT_ORDER="virtio0"
+IMAGE_SIZE="40G"
+DEFAULT_CORES=1
+DEFAULT_MEMORY=2048
+DEFAULT_SOCKETS=1
+DEFAULT_OSTYPE="l26"
+DEFAULT_BIOS="ovmf"
+DEFAULT_MACHINE="q35"
+DEFAULT_CPU="host"
+DEFAULT_VGA="serial0"
+DEFAULT_SERIAL0="socket"
+KIOSK_MODE=false
+DRY_RUN=0
 
 # VM info cache
 declare -A VM_INFO_CACHE
-declare -g CACHE_TIMESTAMP=0
-declare -g CACHE_TTL=30  # 30 seconds
+CACHE_TIMESTAMP=0
+CACHE_TTL=30  # 30 seconds
 
 # ========== CLEANUP & ERROR HANDLING ==========
 cleanup() {
@@ -1693,3 +1580,9 @@ kiosk_create_template() {
     local confirm
     read -r confirm
     confirm=${confirm:-y}
+    
+    if [[ "${confirm,,}" == "y" ]]; then
+        echo ""
+        log "🏗️  Creating template from image..."
+        
+        # Set variables for
