@@ -92,7 +92,7 @@ check_environment() {
     
     # Check available disk space (at least 10GB)
     local available_space
-    available_space=$(df /var/lib/vz 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
+    available_space=$(df /var/lib/vz 2>/dev/null | awk 'NR==2 {print $4}' 2>/dev/null || echo "0")
     if [[ $available_space -lt 10485760 ]]; then  # 10GB in KB
         log "⚠️  Warning: Low disk space available (less than 10GB)"
     fi
@@ -231,9 +231,10 @@ build_vm_info_cache() {
         
         # Check if template
         local is_template="false"
-        if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && 
-           grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-            is_template="true"
+        if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
+            if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                is_template="true"
+            fi
         fi
         
         # Store in cache
