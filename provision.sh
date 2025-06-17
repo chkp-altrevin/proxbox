@@ -543,17 +543,32 @@ paginated_vm_list() {
     local action_type="$1"  # "clone", "delete", "list"
     local selected_vmid=""
     
-    if ! build_vm_info_cache; then
+    # Try to build cache, but don't exit on failure
+    if ! build_vm_info_cache 2>/dev/null; then
         echo "❌ Unable to retrieve VM information"
-        return 1
+        if [[ "$action_type" == "list" ]]; then
+            echo ""
+            echo "Press Enter to return to main menu..."
+            read -r
+            return 0
+        else
+            return 1
+        fi
     fi
     
     local -a vmids
-    mapfile -t vmids < <(get_all_vmids)
+    mapfile -t vmids < <(get_all_vmids 2>/dev/null || echo "")
     
     if [[ ${#vmids[@]} -eq 0 ]]; then
         echo "❌ No VMs or templates found"
-        return 1
+        if [[ "$action_type" == "list" ]]; then
+            echo ""
+            echo "Press Enter to return to main menu..."
+            read -r
+            return 0
+        else
+            return 1
+        fi
     fi
     
     # Pagination setup
@@ -588,34 +603,40 @@ paginated_vm_list() {
         printf "   %-8s %-20s %-12s %-8s %s\n" "VMID" "NAME" "STATUS" "MEMORY" "TYPE"
         printf "   %s\n" "$(printf '%*s' 60 '' | tr ' ' '-')"
         
-        # Display current page items
+        # Display current page items with error handling
         for (( i=start_idx; i<=end_idx; i++ )); do
             local vmid="${vmids[$i]}"
-            local name status memory is_template
-            name=$(get_vm_info "$vmid" "name")
-            status=$(get_vm_info "$vmid" "status")
-            memory=$(get_vm_info "$vmid" "memory")
-            is_template=$(get_vm_info "$vmid" "is_template")
-            
-            local type_display="🖥️  VM"
-            if [[ "$is_template" == "true" ]]; then
-                type_display="📋 Template"
+            if [[ -n "$vmid" ]]; then
+                local name status memory is_template
+                name=$(get_vm_info "$vmid" "name" 2>/dev/null || echo "Unknown")
+                status=$(get_vm_info "$vmid" "status" 2>/dev/null || echo "Unknown")
+                memory=$(get_vm_info "$vmid" "memory" 2>/dev/null || echo "Unknown")
+                is_template=$(get_vm_info "$vmid" "is_template" 2>/dev/null || echo "false")
+                
+                local type_display="🖥️  VM"
+                if [[ "$is_template" == "true" ]]; then
+                    type_display="📋 Template"
+                fi
+                
+                printf "   %-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
             fi
-            
-            printf "   %-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
         done
         
         echo ""
         echo "📊 Page $page of $total_pages (Total: $total_count items)"
         
         if [[ "$action_type" == "list" ]]; then
-            # Count summary
+            # Count summary with error handling
             local template_count=0 vm_count=0
             for vmid in "${vmids[@]}"; do
-                if [[ "$(get_vm_info "$vmid" "is_template")" == "true" ]]; then
-                    ((template_count++))
-                else
-                    ((vm_count++))
+                if [[ -n "$vmid" ]]; then
+                    local is_template_check
+                    is_template_check=$(get_vm_info "$vmid" "is_template" 2>/dev/null || echo "false")
+                    if [[ "$is_template_check" == "true" ]]; then
+                        ((template_count++))
+                    else
+                        ((vm_count++))
+                    fi
                 fi
             done
             echo "📈 Summary: $vm_count VMs, $template_count Templates"
@@ -630,6 +651,10 @@ paginated_vm_list() {
         fi
         if [[ $page -lt $total_pages ]]; then
             nav_options+="[N]ext  "
+        fi
+        
+        if [[ "$action_type" == "list" ]]; then
+            nav_options+="[R]efresh  "
         fi
         
         if [[ "$action_type" != "list" ]]; then
@@ -662,6 +687,30 @@ paginated_vm_list() {
                     sleep 1
                 fi
                 ;;
+            r|refresh)
+                if [[ "$action_type" == "list" ]]; then
+                    echo "🔄 Refreshing VM list..."
+                    # Force cache refresh with error handling
+                    CACHE_TIMESTAMP=0
+                    if build_vm_info_cache 2>/dev/null; then
+                        # Rebuild vmids array with fresh data
+                        mapfile -t vmids < <(get_all_vmids 2>/dev/null || echo "")
+                        total_count=${#vmids[@]}
+                        total_pages=$(( (total_count + items_per_page - 1) / items_per_page ))
+                        # Reset to page 1 if current page is now out of range
+                        if [[ $page -gt $total_pages ]] && [[ $total_pages -gt 0 ]]; then
+                            page=1
+                        fi
+                        echo "✅ Refresh completed"
+                    else
+                        echo "❌ Unable to refresh VM information"
+                    fi
+                    sleep 2
+                else
+                    echo "❌ Refresh not available in this mode"
+                    sleep 2
+                fi
+                ;;
             s|select)
                 if [[ "$action_type" != "list" ]]; then
                     echo ""
@@ -677,12 +726,8 @@ paginated_vm_list() {
                 fi
                 ;;
             q|quit|"")
-                # Fixed: Always return properly to calling function
-                if [[ "$action_type" == "list" ]]; then
-                    return 0  # Return success for list mode
-                else
-                    return 1  # Return failure for clone/delete modes
-                fi
+                # Always return properly to calling function - NEVER exit script
+                return 0
                 ;;
             [0-9]*)
                 if [[ "$action_type" != "list" ]] && [[ "$action" =~ ^[0-9]+$ ]]; then
@@ -1092,12 +1137,90 @@ kiosk_clone_vm() {
     fi
 }
 
-# Fixed kiosk_list_vms function - this is the key fix!
+# Fixed kiosk_list_vms function - completely isolated and error-safe
 kiosk_list_vms() {
-    # Call the existing paginated_vm_list function in list mode
-    paginated_vm_list "list"
-    # Always pause and return to menu regardless of return code
-    kiosk_pause
+    clear_screen
+    echo "📋 All VMs and Templates"
+    echo ""
+    
+    # Simple, direct VM listing without complex caching
+    if ! command -v qm >/dev/null 2>&1; then
+        echo "❌ Proxmox tools not available"
+        kiosk_pause
+        return 0
+    fi
+    
+    local vm_list
+    vm_list=$(qm list 2>/dev/null || echo "")
+    
+    if [[ -z "$vm_list" ]]; then
+        echo "❌ No VMs or templates found"
+        kiosk_pause
+        return 0
+    fi
+    
+    # Parse and display VM list
+    echo "   VMID     NAME                 STATUS       MEMORY   TYPE"
+    echo "   ------------------------------------------------------------"
+    
+    local template_count=0
+    local vm_count=0
+    local total_count=0
+    
+    # Process VM list line by line, skipping header
+    echo "$vm_list" | tail -n +2 | while read -r vmid name status memory rest; do
+        if [[ -n "$vmid" ]] && [[ "$vmid" =~ ^[0-9]+$ ]]; then
+            local type_display="🖥️  VM"
+            
+            # Check if it's a template - simple file check
+            if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]]; then
+                if grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                    type_display="📋 Template"
+                fi
+            fi
+            
+            printf "   %-8s %-20s %-12s %-8s %s\n" "$vmid" "$name" "$status" "$memory" "$type_display"
+        fi
+    done
+    
+    # Count totals separately to avoid subshell issues
+    while read -r vmid name status memory rest; do
+        if [[ -n "$vmid" ]] && [[ "$vmid" =~ ^[0-9]+$ ]]; then
+            ((total_count++))
+            if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                ((template_count++))
+            else
+                ((vm_count++))
+            fi
+        fi
+    done < <(echo "$vm_list" | tail -n +2)
+    
+    echo ""
+    echo "📈 Summary: $vm_count VMs, $template_count Templates (Total: $total_count)"
+    echo ""
+    echo "Navigation: [R]efresh  [Q]uit"
+    echo ""
+    
+    while true; do
+        echo -n "Choose action: "
+        local action
+        read -r action
+        action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+        
+        case "$action" in
+            r|refresh)
+                # Simply call this function again for refresh
+                kiosk_list_vms
+                return 0
+                ;;
+            q|quit|"")
+                return 0
+                ;;
+            *)
+                echo "❌ Invalid option. Use 'r' to refresh or 'q' to quit."
+                ;;
+        esac
+    done
 }
 
 kiosk_delete_vm() {
