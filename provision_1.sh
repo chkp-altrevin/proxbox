@@ -278,34 +278,67 @@ clear_screen() {
 }
 
 show_current_status() {
-    echo "📊 Current Configuration:"
-    echo "   Storage: $STORAGE"
-    echo "   Default Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
-    echo "   Default Cores: ${CORES:-$DEFAULT_CORES}"
-    echo "   CI User: $CI_USER"
-    echo "   Image Size: $IMAGE_SIZE"
+    echo -e "${THEME_ACCENT:-}📊 Current Configuration:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Default Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Default Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   CI User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Image Size: ${THEME_PRIMARY:-}$IMAGE_SIZE${COLORS[reset]:-}"
     echo ""
     
     # Show recent VMs/Templates
-    echo "📋 Recent VMs/Templates:"
+    echo -e "${THEME_ACCENT:-}📋 Recent VMs/Templates:${COLORS[reset]:-}"
     if command -v qm &>/dev/null; then
-        qm list | tail -5 | awk 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s\n", $0}'
+        qm list | tail -5 | awk -v color="${THEME_TEXT:-}" -v reset="${COLORS[reset]:-}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
     else
-        echo "   ⚠️  Proxmox tools not available"
+        echo -e "${THEME_WARNING:-}   ⚠️  Proxmox tools not available${COLORS[reset]:-}"
     fi
     echo ""
     
-    echo "💾 Storage Pools:"
-    echo "   (simplified - avoiding complex loops)"
+    # === STORAGE INFORMATION === (FIXED VERSION)
+    echo -e "${THEME_ACCENT:-}💾 Storage Pools:${COLORS[reset]:-}"
+    if command -v pvesm &>/dev/null; then
+        # Use a safer approach without complex while loops
+        pvesm status 2>/dev/null | awk 'NR>1 && NF>=6 {
+            name=$1; type=$2; total=$4; percent=$6
+            size_gb=total/1024/1024
+            printf "   %s %s %.1f GB (%s)\n", name, type, size_gb, percent
+        }' | head -5 || echo "   No storage information available"
+    else
+        echo -e "${THEME_WARNING:-}   pvesm command not available${COLORS[reset]:-}"
+    fi
     echo ""
     
-    echo "🌐 Network Bridges:"
-    echo "   (simplified - avoiding complex loops)"
+    # === NETWORK INFORMATION === (FIXED VERSION)
+    echo -e "${THEME_ACCENT:-}🌐 Network Bridges (UP):${COLORS[reset]:-}"
+    # Use a simpler approach for network bridges
+    bridge_list=$(ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" | cut -d: -f2 | awk '{print $1}' | tr '\n' ', ' | sed 's/,$//' || echo "None found")
+    echo -e "${THEME_TEXT:-}   $bridge_list${COLORS[reset]:-}"
     echo ""
     
-    echo "⚙️  System Information:"
-    echo "   Node: $(hostname -s)"
-    echo "   Kernel: $(uname -r)"
+    # === SYSTEM INFORMATION ===
+    echo -e "${THEME_ACCENT:-}⚙️  System Information:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Node: ${THEME_PRIMARY:-}$(hostname -s)${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Kernel: ${THEME_PRIMARY:-}$(uname -r)${COLORS[reset]:-}"
+    
+    if command -v pveversion &>/dev/null; then
+        local pve_version
+        pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
+        echo -e "${THEME_TEXT:-}   PVE Version: ${THEME_PRIMARY:-}$pve_version${COLORS[reset]:-}"
+    fi
+    
+    local uptime_info
+    uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
+    echo -e "${THEME_TEXT:-}   Uptime: ${THEME_PRIMARY:-}$uptime_info${COLORS[reset]:-}"
+    
+    # === VM/TEMPLATE COUNTS === (SAFER VERSION)
+    if command -v qm &>/dev/null; then
+        # Use a simpler counting approach
+        local total_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {count++} END {print count+0}')
+        local running_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ && $3=="running" {count++} END {print count+0}')
+        
+        echo -e "${THEME_TEXT:-}   VMs: ${THEME_PRIMARY:-}$total_vms${THEME_TEXT:-} total, ${THEME_SUCCESS:-}$running_vms${THEME_TEXT:-} running${COLORS[reset]:-}"
+    fi
     echo ""
 }
 
