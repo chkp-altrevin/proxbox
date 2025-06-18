@@ -66,26 +66,59 @@ show_current_status() {
     echo ""
     
     # Add system info step by step to see what breaks
-    echo "💾 Storage Info:"
+    echo "💾 Storage Pools:"
     if command -v pvesm &>/dev/null; then
-        pvesm status 2>/dev/null | head -3 || echo "   Storage command failed"
+        pvesm status 2>/dev/null | awk 'NR>1 {
+            printf "   %-12s %6s %8.1f GB (%s%%)\n", $1, $2, $4/1024/1024, $6
+        }' || echo "   Storage command failed"
     else
         echo "   pvesm not available"
     fi
     echo ""
     
-    echo "🌐 Network Info:"
-    echo "   $(ip link show | grep -c vmbr) bridge(s) detected"
+    echo "🌐 Network Bridges:"
+    if ip link show 2>/dev/null | grep -q vmbr; then
+        ip link show | grep -E "^[0-9]+:.*vmbr" | while read -r line; do
+            local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
+            local state=$(echo "$line" | grep -o "state [A-Z]*" | cut -d' ' -f2 || echo "UNKNOWN")
+            echo "   $bridge ($state)"
+        done
+    else
+        echo "   No vmbr bridges found"
+    fi
     echo ""
     
-    echo "⚙️  System Info:"
-    echo "   Node: $(hostname)"
+    echo "⚙️  System Information:"
+    echo "   Node: $(hostname -s)"
     echo "   Kernel: $(uname -r)"
     if command -v pveversion &>/dev/null; then
-        echo "   PVE: $(pveversion | head -1)"
+        local pve_version=$(pveversion | head -1 | cut -d'/' -f2)
+        echo "   PVE Version: $pve_version"
+    fi
+    local uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//')
+    echo "   Uptime: $uptime_info"
+    
+    # Add VM/Template count
+    if command -v qm &>/dev/null; then
+        local vm_count=$(qm list 2>/dev/null | tail -n +2 | wc -l)
+        local running_count=$(qm list 2>/dev/null | grep -c "running" || echo 0)
+        local template_count=0
+        
+        # Count templates
+        for vmid in $(qm list 2>/dev/null | awk 'NR>1 {print $1}'); do
+            if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
+               grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                ((template_count++))
+            fi
+        done
+        
+        local actual_vms=$((vm_count - template_count))
+        echo "   VMs: $actual_vms total, $running_count running"
+        echo "   Templates: $template_count"
     fi
     echo ""
 }
+
 
 kiosk_menu() {
     while true; do
