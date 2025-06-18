@@ -43,6 +43,18 @@ curl -fsSL https://raw.githubusercontent.com/chkp-altrevin/proxbox/main/provisio
 ./provision.sh --list-vmids
 ```
 
+```bash
+# Interactive mode (recommended for exploration)
+./provision.sh --kiosk
+
+# Command line examples
+./provision.sh --image ubuntu-24.04.iso --name my-template
+./provision.sh --provision-vm --image my-image.iso
+./provision.sh --clone-vmid 100 --name new-vm
+./provision.sh --list-vmids
+./provision.sh --dry-run --image test.iso  # Safe testing
+```
+
 ## 📋 Usage
 
 ### 🎛️ Interactive Mode
