@@ -278,115 +278,34 @@ clear_screen() {
 }
 
 show_current_status() {
-    echo -e "${THEME_ACCENT}📊 Current Configuration:${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Storage: ${THEME_PRIMARY}$STORAGE${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Default Memory: ${THEME_PRIMARY}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Default Cores: ${THEME_PRIMARY}${CORES:-$DEFAULT_CORES}${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   CI User: ${THEME_PRIMARY}$CI_USER${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Image Size: ${THEME_PRIMARY}$IMAGE_SIZE${COLORS[reset]}"
+    echo "📊 Current Configuration:"
+    echo "   Storage: $STORAGE"
+    echo "   Default Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
+    echo "   Default Cores: ${CORES:-$DEFAULT_CORES}"
+    echo "   CI User: $CI_USER"
+    echo "   Image Size: $IMAGE_SIZE"
     echo ""
     
     # Show recent VMs/Templates
-    echo -e "${THEME_ACCENT}📋 Recent VMs/Templates:${COLORS[reset]}"
+    echo "📋 Recent VMs/Templates:"
     if command -v qm &>/dev/null; then
-        qm list | tail -5 | awk -v color="${THEME_TEXT}" -v reset="${COLORS[reset]}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
+        qm list | tail -5 | awk 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s\n", $0}'
     else
-        echo -e "${THEME_WARNING}   ⚠️  Proxmox tools not available${COLORS[reset]}"
+        echo "   ⚠️  Proxmox tools not available"
     fi
     echo ""
     
-    # === STORAGE INFORMATION ===
-    echo -e "${THEME_ACCENT}💾 Storage Pools:${COLORS[reset]}"
-    if command -v pvesm &>/dev/null; then
-        local temp_storage="/tmp/storage_$$.tmp"
-        pvesm status 2>/dev/null > "$temp_storage"
-        if [[ -s "$temp_storage" ]]; then
-            tail -n +2 "$temp_storage" | head -5 | while read -r name type status total used avail percent; do
-                if [[ -n "$name" && -n "$total" ]]; then
-                    local size_gb=$(echo "scale=1; $total/1024/1024" | bc 2>/dev/null || echo "0")
-                    echo -e "${THEME_TEXT}   ${THEME_PRIMARY}$name${THEME_TEXT} $type ${THEME_SECONDARY}$size_gb GB${THEME_TEXT} (${THEME_ACCENT}$percent${THEME_TEXT})${COLORS[reset]}"
-                fi
-            done
-        else
-            echo -e "${THEME_WARNING}   No storage information available${COLORS[reset]}"
-        fi
-        rm -f "$temp_storage" 2>/dev/null
-    else
-        echo -e "${THEME_WARNING}   pvesm command not available${COLORS[reset]}"
-    fi
+    echo "💾 Storage Pools:"
+    echo "   (simplified - avoiding complex loops)"
     echo ""
     
-    # === NETWORK INFORMATION === (Replace this section in show_current_status)
-    echo -e "${THEME_ACCENT}🌐 Network Bridges (UP):${COLORS[reset]}"
-    local bridge_list=""
-    local temp_network="/tmp/network_$$.tmp"
-    ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" > "$temp_network" 2>/dev/null
-    
-    if [[ -s "$temp_network" ]]; then
-        local first_bridge=true
-        while read -r line; do
-            if [[ -n "$line" ]]; then
-                local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
-                if [[ "$first_bridge" == true ]]; then
-                    bridge_list="${THEME_PRIMARY}$bridge"
-                    first_bridge=false
-                else
-                    bridge_list="$bridge_list${THEME_DIM}, ${THEME_PRIMARY}$bridge"
-                fi
-            fi
-        done < "$temp_network"
-        echo -e "${THEME_TEXT}   $bridge_list${COLORS[reset]}"
-    else
-        echo -e "${THEME_WARNING}   No UP vmbr bridges found${COLORS[reset]}"
-    fi
-    rm -f "$temp_network" 2>/dev/null
+    echo "🌐 Network Bridges:"
+    echo "   (simplified - avoiding complex loops)"
     echo ""
     
-    # === SYSTEM INFORMATION ===
-    echo -e "${THEME_ACCENT}⚙️  System Information:${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Node: ${THEME_PRIMARY}$(hostname -s)${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Kernel: ${THEME_PRIMARY}$(uname -r)${COLORS[reset]}"
-    
-    if command -v pveversion &>/dev/null; then
-        local pve_version
-        pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
-        echo -e "${THEME_TEXT}   PVE Version: ${THEME_PRIMARY}$pve_version${COLORS[reset]}"
-    fi
-    
-    local uptime_info
-    uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
-    echo -e "${THEME_TEXT}   Uptime: ${THEME_PRIMARY}$uptime_info${COLORS[reset]}"
-    
-    # COMMENT OUT THE VM/TEMPLATE COUNTS SECTION TEMPORARILY
-    # === VM/TEMPLATE COUNTS ===
-    # if command -v qm &>/dev/null; then
-    #     local vm_count=0
-    #     local running_count=0
-    #     local template_count=0
-    #     
-    #     local temp_vmlist="/tmp/vmlist_$$.tmp"
-    #     qm list 2>/dev/null | tail -n +2 > "$temp_vmlist"
-    #     
-    #     if [[ -s "$temp_vmlist" ]]; then
-    #         while read -r vmid name status rest; do
-    #             if [[ "$vmid" =~ ^[0-9]+$ ]]; then
-    #                 if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
-    #                    grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-    #                     ((template_count++))
-    #                 else
-    #                     ((vm_count++))
-    #                     if [[ "$status" == "running" ]]; then
-    #                         ((running_count++))
-    #                     fi
-    #                 fi
-    #             fi
-    #         done < "$temp_vmlist"
-    #         
-    #         echo -e "${THEME_TEXT}   VMs: ${THEME_PRIMARY}$vm_count${THEME_TEXT} total, ${THEME_SUCCESS}$running_count${THEME_TEXT} running${COLORS[reset]}"
-    #         echo -e "${THEME_TEXT}   Templates: ${THEME_PRIMARY}$template_count${COLORS[reset]}"
-    #     fi
-    #     rm -f "$temp_vmlist" 2>/dev/null
-    # fi
+    echo "⚙️  System Information:"
+    echo "   Node: $(hostname -s)"
+    echo "   Kernel: $(uname -r)"
     echo ""
 }
 
