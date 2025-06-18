@@ -1,7 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Load environment configuration
 
+# ========== DEFAULT CONFIGURATION ==========
+# Set all default values BEFORE loading .env or using them anywhere
+
+# Storage configuration
+DEFAULT_STORAGE="local-lvm"
+STORAGE="${STORAGE:-$DEFAULT_STORAGE}"
+
+# Hardware defaults
+DEFAULT_MEMORY="2048"
+DEFAULT_CORES="1"
+DEFAULT_SOCKETS="1"
+MEMORY="${MEMORY:-$DEFAULT_MEMORY}"
+CORES="${CORES:-$DEFAULT_CORES}"
+SOCKETS="${SOCKETS:-$DEFAULT_SOCKETS}"
+
+# Disk configuration
+DEFAULT_IMAGE_SIZE="40G"
+IMAGE_SIZE="${IMAGE_SIZE:-$DEFAULT_IMAGE_SIZE}"
+
+# Cloud-init defaults
+DEFAULT_CI_USER="ubuntu"
+DEFAULT_CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
+DEFAULT_CI_TAGS="ubuntu-template,24.04,cloudinit"
+CI_USER="${CI_USER:-$DEFAULT_CI_USER}"
+CI_SSH_KEY_PATH="${CI_SSH_KEY_PATH:-$DEFAULT_CI_SSH_KEY_PATH}"
+CI_TAGS="${CI_TAGS:-$DEFAULT_CI_TAGS}"
+
+# System defaults
+DEFAULT_OSTYPE="l26"
+DEFAULT_BIOS="ovmf"
+DEFAULT_MACHINE="q35"
+DEFAULT_CPU="host"
+DEFAULT_VGA="serial0"
+DEFAULT_SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
+CI_BOOT_ORDER="virtio0"
+CI_VENDOR_SNIPPET="local:snippets/vendor.yaml"
+
+# Logging
+LOG_FILE="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
+
+# Load environment configuration
 if [[ -f ".env" ]]; then
     source .env
     log "📄 Loaded configuration from .env"
@@ -10,6 +50,24 @@ fi
 # ========== COLOR THEME CONFIGURATION ==========
 # Default theme
 KIOSK_THEME="${KIOSK_THEME:-blue}"
+
+# Additional missing defaults that are referenced in the script
+DEFAULT_VM_NAME="ubuntu-template"
+VM_NAME="${VM_NAME:-$DEFAULT_VM_NAME}"
+VMID="${VMID:-}"
+DRY_RUN="${DRY_RUN:-0}"
+PROVISION_VM="${PROVISION_VM:-0}"
+KIOSK_MODE="${KIOSK_MODE:-false}"
+
+# ========== LOGGING ==========
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+error_exit() {
+    log "ERROR: $1"
+    exit 1
+}
 
 # ========== THEME DEFINITIONS ==========
 set_theme_colors() {
@@ -155,17 +213,6 @@ initialize_themes() {
 # Call initialization
 initialize_themes
 
-
-
-# ========== LOGGING ==========
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
-
-error_exit() {
-    log "ERROR: $1"
-    exit 1
-}
 
 # ========== ENHANCED DISPLAY FUNCTIONS ==========
 clear_screen() {
