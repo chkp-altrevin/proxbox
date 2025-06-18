@@ -65,56 +65,105 @@ show_current_status() {
     fi
     echo ""
     
-    # Add system info step by step to see what breaks
+    # === STORAGE INFORMATION ===
     echo "💾 Storage Pools:"
     if command -v pvesm &>/dev/null; then
-        pvesm status 2>/dev/null | awk 'NR>1 {
-            printf "   %-12s %6s %8.1f GB (%s%%)\n", $1, $2, $4/1024/1024, $6
-        }' || echo "   Storage command failed"
+        # Use a temp file to avoid pipe/subshell issues
+        local temp_storage="/tmp/storage_$$.tmp"
+        pvesm status 2>/dev/null > "$temp_storage"
+        if [[ -s "$temp_storage" ]]; then
+            tail -n +2 "$temp_storage" | head -5 | while read -r name type status total used avail percent; do
+                if [[ -n "$name" && -n "$total" ]]; then
+                    local size_gb=$(echo "scale=1; $total/1024/1024" | bc 2>/dev/null || echo "0")
+                    echo "   $name $type $size_gb GB ($percent)"
+                fi
+            done
+        else
+            echo "   No storage information available"
+        fi
+        rm -f "$temp_storage" 2>/dev/null
     else
-        echo "   pvesm not available"
+        echo "   pvesm command not available"
     fi
     echo ""
     
+    # === NETWORK INFORMATION ===
     echo "🌐 Network Bridges:"
-    if ip link show 2>/dev/null | grep -q vmbr; then
-        ip link show | grep -E "^[0-9]+:.*vmbr" | while read -r line; do
-            local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
-            local state=$(echo "$line" | grep -o "state [A-Z]*" | cut -d' ' -f2 || echo "UNKNOWN")
-            echo "   $bridge ($state)"
-        done
+    # Use a simple approach without pipes in subshells
+    local temp_network="/tmp/network_$$.tmp"
+    ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr" > "$temp_network" 2>/dev/null
+    
+    if [[ -s "$temp_network" ]]; then
+        while read -r line; do
+            if [[ -n "$line" ]]; then
+                local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
+                local state="UP"
+                if echo "$line" | grep -q "state DOWN"; then
+                    state="DOWN"
+                elif echo "$line" | grep -q "state UNKNOWN"; then
+                    state="UNKNOWN"
+                fi
+                echo "   $bridge ($state)"
+            fi
+        done < "$temp_network"
     else
         echo "   No vmbr bridges found"
     fi
+    rm -f "$temp_network" 2>/dev/null
     echo ""
     
+    # === SYSTEM INFORMATION ===
     echo "⚙️  System Information:"
     echo "   Node: $(hostname -s)"
     echo "   Kernel: $(uname -r)"
+    
     if command -v pveversion &>/dev/null; then
-        local pve_version=$(pveversion | head -1 | cut -d'/' -f2)
+        local pve_version
+        pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
         echo "   PVE Version: $pve_version"
     fi
-    local uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//')
+    
+    local uptime_info
+    uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
     echo "   Uptime: $uptime_info"
     
-    # Add VM/Template count
+    # === VM/TEMPLATE COUNTS ===
     if command -v qm &>/dev/null; then
-        local vm_count=$(qm list 2>/dev/null | tail -n +2 | wc -l)
-        local running_count=$(qm list 2>/dev/null | grep -c "running" || echo 0)
+        local vm_count=0
+        local running_count=0
         local template_count=0
+        local temp_vmlist="/tmp/vmlist_$$.tmp"
         
-        # Count templates
-        for vmid in $(qm list 2>/dev/null | awk 'NR>1 {print $1}'); do
-            if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
-               grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-                ((template_count++))
-            fi
-        done
-        
-        local actual_vms=$((vm_count - template_count))
-        echo "   VMs: $actual_vms total, $running_count running"
-        echo "   Templates: $template_count"
+        qm list 2>/dev/null > "$temp_vmlist"
+        if [[ -s "$temp_vmlist" ]]; then
+            # Count VMs and running status
+            tail -n +2 "$temp_vmlist" | while read -r vmid name status rest; do
+                if [[ "$vmid" =~ ^[0-9]+$ ]]; then
+                    # Check if it's a template
+                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
+                       grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                        echo "template" >> "/tmp/count_template_$$"
+                    else
+                        echo "vm" >> "/tmp/count_vm_$$"
+                        if [[ "$status" == "running" ]]; then
+                            echo "running" >> "/tmp/count_running_$$"
+                        fi
+                    fi
+                fi
+            done
+            
+            # Count the files
+            vm_count=$(wc -l < "/tmp/count_vm_$$" 2>/dev/null || echo 0)
+            running_count=$(wc -l < "/tmp/count_running_$$" 2>/dev/null || echo 0)
+            template_count=$(wc -l < "/tmp/count_template_$$" 2>/dev/null || echo 0)
+            
+            echo "   VMs: $vm_count total, $running_count running"
+            echo "   Templates: $template_count"
+            
+            # Cleanup temp files
+            rm -f "/tmp/count_vm_$$" "/tmp/count_running_$$" "/tmp/count_template_$$" 2>/dev/null
+        fi
+        rm -f "$temp_vmlist" 2>/dev/null
     fi
     echo ""
 }
