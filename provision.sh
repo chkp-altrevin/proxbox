@@ -277,34 +277,148 @@ kiosk_create_template() {
     echo "⚙️  Configure advanced options? [y/N]: "
     read -r advanced_config
     
+    # Set defaults
     local memory_config="${MEMORY:-$DEFAULT_MEMORY}"
     local cores_config="${CORES:-$DEFAULT_CORES}"
+    local sockets_config="${SOCKETS:-$DEFAULT_SOCKETS}"
     local storage_config="$STORAGE"
+    local image_size_config="$IMAGE_SIZE"
+    local ciuser_config="$CI_USER"
+    local sshkeys_config="$CI_SSH_KEY_PATH"
+    local tags_config="$CI_TAGS"
+    local ostype_config="$DEFAULT_OSTYPE"
+    local bios_config="$DEFAULT_BIOS"
+    local machine_config="$DEFAULT_MACHINE"
+    local cpu_config="$DEFAULT_CPU"
     
     if [[ "${advanced_config,,}" == "y" ]]; then
+        clear_screen
+        echo "⚙️  Advanced Template Configuration"
         echo ""
-        echo "📊 Advanced Configuration:"
+        echo "💡 Templates are base images for cloning VMs. Configure the default"
+        echo "   settings that cloned VMs will inherit."
+        echo ""
+        echo "🔧 Hardware Configuration:"
+        echo ""
+        
         echo -n "Memory (MB) [$memory_config]: "
+        echo "   💡 Examples: 2048 (2GB), 4096 (4GB), 8192 (8GB)"
+        echo "   📋 Template default - cloned VMs will inherit this setting"
         read -r new_memory
         memory_config="${new_memory:-$memory_config}"
+        echo ""
         
         echo -n "CPU Cores [$cores_config]: "
+        echo "   💡 Examples: 1 (single core), 2 (dual core), 4 (quad core)"
+        echo "   📋 Template default - can be changed when cloning"
         read -r new_cores
         cores_config="${new_cores:-$cores_config}"
+        echo ""
         
-        echo -n "Storage [$storage_config]: "
+        echo -n "CPU Sockets [$sockets_config]: "
+        echo "   💡 Examples: 1 (single socket), 2 (dual socket for NUMA)"
+        echo "   📋 Template default - affects VM CPU topology"
+        read -r new_sockets
+        sockets_config="${new_sockets:-$sockets_config}"
+        echo ""
+        
+        echo -n "Storage Pool [$storage_config]: "
+        echo "   💡 Available: $(pvesm status 2>/dev/null | awk 'NR>1 {printf "%s ", $1}' || echo 'local-lvm local')"
+        echo "   📋 Where template disk will be stored"
         read -r new_storage
         storage_config="${new_storage:-$storage_config}"
+        echo ""
+        
+        echo -n "Disk Size [$image_size_config]: "
+        echo "   💡 Examples: 40G (40GB), 100G (100GB), 500G (500GB), 1T (1TB)"
+        echo "   📋 Base disk size - cloned VMs can expand this later"
+        read -r new_size
+        image_size_config="${new_size:-$image_size_config}"
+        echo ""
+        
+        echo "🖥️  System Configuration:"
+        echo ""
+        
+        echo -n "OS Type [$ostype_config]: "
+        echo "   💡 Examples: l26 (Linux), win10 (Windows 10), win11 (Windows 11)"
+        echo "   📋 Optimizes VM settings for the target OS"
+        read -r new_ostype
+        ostype_config="${new_ostype:-$ostype_config}"
+        echo ""
+        
+        echo -n "BIOS Type [$bios_config]: "
+        echo "   💡 Examples: ovmf (UEFI - modern), seabios (Legacy BIOS)"
+        echo "   📋 UEFI recommended for modern OS, BIOS for legacy systems"
+        read -r new_bios
+        bios_config="${new_bios:-$bios_config}"
+        echo ""
+        
+        echo -n "Machine Type [$machine_config]: "
+        echo "   💡 Examples: q35 (modern chipset), i440fx (legacy chipset)"
+        echo "   📋 q35 recommended for better hardware support"
+        read -r new_machine
+        machine_config="${new_machine:-$machine_config}"
+        echo ""
+        
+        echo -n "CPU Type [$cpu_config]: "
+        echo "   💡 Examples: host (best performance), kvm64 (compatibility)"
+        echo "   📋 'host' gives best performance but reduces portability"
+        read -r new_cpu
+        cpu_config="${new_cpu:-$cpu_config}"
+        echo ""
+        
+        echo "☁️  Cloud-Init Configuration:"
+        echo ""
+        echo "💡 Cloud-init enables automatic VM configuration on first boot"
+        echo ""
+        
+        echo -n "Cloud-Init User [$ciuser_config]: "
+        echo "   💡 Examples: ubuntu (Ubuntu), administrator (Windows), centos (CentOS)"
+        echo "   📋 Default user account created in cloned VMs"
+        read -r new_ciuser
+        ciuser_config="${new_ciuser:-$ciuser_config}"
+        echo ""
+        
+        echo -n "SSH Keys Path [$sshkeys_config]: "
+        echo "   💡 Examples: /root/.ssh/authorized_keys, /home/user/.ssh/id_rsa.pub"
+        echo "   📋 SSH keys for passwordless access to cloned VMs"
+        read -r new_sshkeys
+        sshkeys_config="${new_sshkeys:-$sshkeys_config}"
+        echo ""
+        
+        echo -n "Tags [$tags_config]: "
+        echo "   💡 Examples: 'ubuntu-template,22.04' or 'windows-template,server-2022'"
+        echo "   📋 Tags help organize and identify templates"
+        read -r new_tags
+        tags_config="${new_tags:-$tags_config}"
+        echo ""
     fi
     
+    clear_screen
+    echo "📋 Template Configuration Summary:"
     echo ""
-    echo "📋 Template Configuration:"
+    echo "🔧 Hardware:"
     echo "   Image: $(basename "$image_input")"
     echo "   VMID: $vmid_input"
     echo "   Name: $name_input"
     echo "   Storage: $storage_config"
+    echo "   Disk Size: $image_size_config"
     echo "   Memory: ${memory_config}MB"
-    echo "   Cores: $cores_config"
+    echo "   CPU Cores: $cores_config"
+    echo "   CPU Sockets: $sockets_config"
+    echo ""
+    echo "🖥️  System:"
+    echo "   OS Type: $ostype_config"
+    echo "   BIOS: $bios_config"
+    echo "   Machine: $machine_config"
+    echo "   CPU Type: $cpu_config"
+    echo ""
+    echo "☁️  Cloud-Init:"
+    echo "   User: $ciuser_config"
+    echo "   SSH Keys: $sshkeys_config"
+    echo "   Tags: $tags_config"
+    echo ""
+    echo "💡 Note: This template can be cloned to create VMs with these settings"
     echo ""
     echo -n "Create template? [Y/n]: "
     
@@ -322,7 +436,16 @@ kiosk_create_template() {
         VM_NAME="$name_input"
         MEMORY="$memory_config"
         CORES="$cores_config"
+        SOCKETS="$sockets_config"
         STORAGE="$storage_config"
+        IMAGE_SIZE="$image_size_config"
+        CI_USER="$ciuser_config"
+        CI_SSH_KEY_PATH="$sshkeys_config"
+        CI_TAGS="$tags_config"
+        DEFAULT_OSTYPE="$ostype_config"
+        DEFAULT_BIOS="$bios_config"
+        DEFAULT_MACHINE="$machine_config"
+        DEFAULT_CPU="$cpu_config"
         PROVISION_VM=0
         
         create_template
@@ -332,6 +455,8 @@ kiosk_create_template() {
         echo "   VMID: $vmid_input"
         echo "   Name: $name_input"
         echo "   Ready for cloning!"
+        echo ""
+        echo "💡 Use option 3 'Clone Existing VM/Template' to create VMs from this template"
         kiosk_pause
     fi
 }
@@ -458,34 +583,129 @@ kiosk_provision_vm() {
     echo "⚙️  Configure advanced options? [y/N]: "
     read -r advanced_config
     
+    # Set defaults
     local memory_config="${MEMORY:-$DEFAULT_MEMORY}"
     local cores_config="${CORES:-$DEFAULT_CORES}"
+    local sockets_config="${SOCKETS:-$DEFAULT_SOCKETS}"
     local storage_config="$STORAGE"
+    local image_size_config="$IMAGE_SIZE"
+    local ciuser_config="$CI_USER"
+    local sshkeys_config="$CI_SSH_KEY_PATH"
+    local tags_config="$CI_TAGS"
+    local ostype_config="$DEFAULT_OSTYPE"
+    local bios_config="$DEFAULT_BIOS"
+    local machine_config="$DEFAULT_MACHINE"
+    local cpu_config="$DEFAULT_CPU"
     
     if [[ "${advanced_config,,}" == "y" ]]; then
+        clear_screen
+        echo "⚙️  Advanced VM Configuration"
         echo ""
-        echo "📊 Advanced Configuration:"
+        echo "🔧 Hardware Configuration:"
+        echo ""
+        
         echo -n "Memory (MB) [$memory_config]: "
+        echo "   💡 Examples: 2048 (2GB), 4096 (4GB), 8192 (8GB)"
         read -r new_memory
         memory_config="${new_memory:-$memory_config}"
+        echo ""
         
         echo -n "CPU Cores [$cores_config]: "
+        echo "   💡 Examples: 1 (single core), 2 (dual core), 4 (quad core)"
         read -r new_cores
         cores_config="${new_cores:-$cores_config}"
+        echo ""
         
-        echo -n "Storage [$storage_config]: "
+        echo -n "CPU Sockets [$sockets_config]: "
+        echo "   💡 Examples: 1 (single socket), 2 (dual socket for NUMA)"
+        read -r new_sockets
+        sockets_config="${new_sockets:-$sockets_config}"
+        echo ""
+        
+        echo -n "Storage Pool [$storage_config]: "
+        echo "   💡 Available: $(pvesm status 2>/dev/null | awk 'NR>1 {printf "%s ", $1}' || echo 'local-lvm local')"
         read -r new_storage
         storage_config="${new_storage:-$storage_config}"
+        echo ""
+        
+        echo -n "Disk Size [$image_size_config]: "
+        echo "   💡 Examples: 40G (40GB), 100G (100GB), 500G (500GB), 1T (1TB)"
+        read -r new_size
+        image_size_config="${new_size:-$image_size_config}"
+        echo ""
+        
+        echo "🖥️  System Configuration:"
+        echo ""
+        
+        echo -n "OS Type [$ostype_config]: "
+        echo "   💡 Examples: l26 (Linux), win10 (Windows 10), win11 (Windows 11)"
+        read -r new_ostype
+        ostype_config="${new_ostype:-$ostype_config}"
+        echo ""
+        
+        echo -n "BIOS Type [$bios_config]: "
+        echo "   💡 Examples: ovmf (UEFI - modern), seabios (Legacy BIOS)"
+        read -r new_bios
+        bios_config="${new_bios:-$bios_config}"
+        echo ""
+        
+        echo -n "Machine Type [$machine_config]: "
+        echo "   💡 Examples: q35 (modern chipset), i440fx (legacy chipset)"
+        read -r new_machine
+        machine_config="${new_machine:-$machine_config}"
+        echo ""
+        
+        echo -n "CPU Type [$cpu_config]: "
+        echo "   💡 Examples: host (best performance), kvm64 (compatibility)"
+        read -r new_cpu
+        cpu_config="${new_cpu:-$cpu_config}"
+        echo ""
+        
+        echo "☁️  Cloud-Init Configuration:"
+        echo ""
+        
+        echo -n "Cloud-Init User [$ciuser_config]: "
+        echo "   💡 Examples: ubuntu (Ubuntu), administrator (Windows), centos (CentOS)"
+        read -r new_ciuser
+        ciuser_config="${new_ciuser:-$ciuser_config}"
+        echo ""
+        
+        echo -n "SSH Keys Path [$sshkeys_config]: "
+        echo "   💡 Examples: /root/.ssh/authorized_keys, /home/user/.ssh/id_rsa.pub"
+        read -r new_sshkeys
+        sshkeys_config="${new_sshkeys:-$sshkeys_config}"
+        echo ""
+        
+        echo -n "Tags [$tags_config]: "
+        echo "   💡 Examples: 'production,web-server' or 'development,database,mysql'"
+        read -r new_tags
+        tags_config="${new_tags:-$tags_config}"
+        echo ""
     fi
     
+    clear_screen
+    echo "📋 VM Configuration Summary:"
     echo ""
-    echo "📋 VM Configuration:"
+    echo "🔧 Hardware:"
     echo "   Image: $(basename "$image_input")"
     echo "   VMID: $vmid_input"
     echo "   Name: $name_input"
     echo "   Storage: $storage_config"
+    echo "   Disk Size: $image_size_config"
     echo "   Memory: ${memory_config}MB"
-    echo "   Cores: $cores_config"
+    echo "   CPU Cores: $cores_config"
+    echo "   CPU Sockets: $sockets_config"
+    echo ""
+    echo "🖥️  System:"
+    echo "   OS Type: $ostype_config"
+    echo "   BIOS: $bios_config"
+    echo "   Machine: $machine_config"
+    echo "   CPU Type: $cpu_config"
+    echo ""
+    echo "☁️  Cloud-Init:"
+    echo "   User: $ciuser_config"
+    echo "   SSH Keys: $sshkeys_config"
+    echo "   Tags: $tags_config"
     echo ""
     echo -n "Create and start VM? [Y/n]: "
     
@@ -503,7 +723,16 @@ kiosk_provision_vm() {
         VM_NAME="$name_input"
         MEMORY="$memory_config"
         CORES="$cores_config"
+        SOCKETS="$sockets_config"
         STORAGE="$storage_config"
+        IMAGE_SIZE="$image_size_config"
+        CI_USER="$ciuser_config"
+        CI_SSH_KEY_PATH="$sshkeys_config"
+        CI_TAGS="$tags_config"
+        DEFAULT_OSTYPE="$ostype_config"
+        DEFAULT_BIOS="$bios_config"
+        DEFAULT_MACHINE="$machine_config"
+        DEFAULT_CPU="$cpu_config"
         PROVISION_VM=1
         
         create_template
