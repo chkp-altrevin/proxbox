@@ -321,20 +321,22 @@ show_current_status() {
     fi
     echo ""
     
-    # === NETWORK INFORMATION ===
+    # === NETWORK INFORMATION === (Replace this section in show_current_status)
     echo -e "${THEME_ACCENT}🌐 Network Bridges (UP):${COLORS[reset]}"
     local bridge_list=""
     local temp_network="/tmp/network_$$.tmp"
     ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" > "$temp_network" 2>/dev/null
     
     if [[ -s "$temp_network" ]]; then
+        local first_bridge=true
         while read -r line; do
             if [[ -n "$line" ]]; then
                 local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
-                if [[ -n "$bridge_list" ]]; then
-                    bridge_list="$bridge_list${THEME_DIM}, ${THEME_PRIMARY}$bridge"
-                else
+                if [[ "$first_bridge" == true ]]; then
                     bridge_list="${THEME_PRIMARY}$bridge"
+                    first_bridge=false
+                else
+                    bridge_list="$bridge_list${THEME_DIM}, ${THEME_PRIMARY}$bridge"
                 fi
             fi
         done < "$temp_network"
