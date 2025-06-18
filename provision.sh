@@ -2037,7 +2037,7 @@ create_vendor_snippet() {
     if [[ ! -f "$snippet_path" ]] && [[ $DRY_RUN -eq 0 ]]; then
         log "🧩 Creating cloud-init vendor snippet..."
         mkdir -p "$(dirname "$snippet_path")"
-        cat > "$snippet_path" <<EOF
+        cat > "$snippet_path" <<-EOF
 #cloud-config
 runcmd:
   - apt update
