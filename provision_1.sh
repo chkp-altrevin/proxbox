@@ -237,14 +237,49 @@ initialize_themes
 
 # ========== ENHANCED DISPLAY FUNCTIONS ==========
 clear_screen() {
+    # Initialize theme if not already set
+    if [[ -z "${THEME_BG:-}" ]]; then
+        set_theme_colors
+    fi
+    
     clear
     
-    # Simple header without complex theme handling
-    echo "================================================================================"
-    echo "                      🏗️  PROXMOX TEMPLATE PROVISIONER                      "
-    echo "================================================================================"
+    # Create a gradient-like effect with different box styles
+    case "$KIOSK_THEME" in
+        "blue"|"cyber")
+            echo -e "${THEME_BORDER}╔══════════════════════════════════════════════════════════════════════════════╗${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}╚══════════════════════════════════════════════════════════════════════════════╝${COLORS[reset]}"
+            ;;
+        "green")
+            echo -e "${THEME_BORDER}┌──────────────────────────────────────────────────────────────────────────────┐${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}└──────────────────────────────────────────────────────────────────────────────┘${COLORS[reset]}"
+            ;;
+        "purple")
+            echo -e "${THEME_BORDER}╭──────────────────────────────────────────────────────────────────────────────╮${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}╰──────────────────────────────────────────────────────────────────────────────╯${COLORS[reset]}"
+            ;;
+        "orange")
+            echo -e "${THEME_BORDER}▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄${COLORS[reset]}"
+            echo -e "${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${COLORS[reset]}"
+            echo -e "${THEME_SECONDARY}                                  $THEME_NAME                                 ${COLORS[reset]}"
+            echo -e "${THEME_BORDER}▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀${COLORS[reset]}"
+            ;;
+        "minimal")
+            echo -e "${THEME_BORDER}=================================================================================${COLORS[reset]}"
+            echo -e "${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${COLORS[reset]}"
+            echo -e "${THEME_SECONDARY}                                  $THEME_NAME                                 ${COLORS[reset]}"
+            echo -e "${THEME_BORDER}=================================================================================${COLORS[reset]}"
+            ;;
+    esac
     echo ""
 }
+
 show_current_status() {
     echo -e "${THEME_ACCENT}📊 Current Configuration:${COLORS[reset]}"
     echo -e "${THEME_TEXT}   Storage: ${THEME_PRIMARY}$STORAGE${COLORS[reset]}"
