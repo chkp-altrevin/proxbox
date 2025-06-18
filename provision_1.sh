@@ -2118,10 +2118,11 @@ done
 
 # Handle kiosk mode
 if [[ "$KIOSK_MODE" == "true" ]]; then
+    # Ensure colors are initialized before starting kiosk menu
+    initialize_themes
     kiosk_menu
     exit 0
 fi
-
 # Handle list VMIDs
 if [[ $LIST_VMIDS -eq 1 ]]; then
     log "📋 Listing existing VMIDs:"
