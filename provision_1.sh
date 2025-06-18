@@ -391,27 +391,25 @@ show_current_status() {
 
 
 kiosk_menu() {
-    # Set theme colors and debug
-    echo "DEBUG: Initializing theme colors..."
-    set_theme_colors
-    
-    # Debug: Check if theme variables are set
-    echo "DEBUG: THEME_ACCENT=${THEME_ACCENT:-UNSET}"
-    echo "DEBUG: THEME_TEXT=${THEME_TEXT:-UNSET}"
-    echo "DEBUG: THEME_PRIMARY=${THEME_PRIMARY:-UNSET}"
-    echo "DEBUG: COLORS[reset]=${COLORS[reset]:-UNSET}"
+    echo "DEBUG: Entering kiosk_menu function"
     
     while true; do
-        clear_screen
-        show_current_status
+        echo "DEBUG: Starting loop iteration"
         
-        echo "DEBUG: About to display menu..."
-        
-        # Try a simple echo first
-        echo "🎛️  Main Menu - Select an action:"
+        # Use basic clear and header
+        clear
+        echo "================================================================================"
+        echo "                      🏗️  PROXMOX TEMPLATE PROVISIONER                      "
+        echo "================================================================================"
         echo ""
         
-        # Try without color codes first
+        echo "DEBUG: About to call show_current_status"
+        show_current_status
+        echo "DEBUG: show_current_status completed"
+        
+        echo "DEBUG: About to display menu options"
+        echo "🎛️  Main Menu - Select an action:"
+        echo ""
         echo "   1) 📁 Create Template from Image    - Build template from ISO/IMG"
         echo "   2) 🖥️  Provision VM from Image      - Create VM from ISO/IMG"
         echo "   3) 🔄 Clone Existing VM/Template   - Clone from existing VMID"
@@ -424,7 +422,7 @@ kiosk_menu() {
         echo ""
         echo -n "Enter your choice [0-8]: "
         
-        echo "DEBUG: Menu displayed, waiting for input..."
+        echo "DEBUG: Menu displayed, waiting for read"
         
         local choice
         read -r choice
@@ -432,18 +430,22 @@ kiosk_menu() {
         echo "DEBUG: User entered: '$choice'"
         
         case "$choice" in
-            1) echo "DEBUG: Calling kiosk_create_template"; kiosk_create_template ;;
-            2) echo "DEBUG: Calling kiosk_provision_vm"; kiosk_provision_vm ;;
-            3) echo "DEBUG: Calling kiosk_clone_vm"; kiosk_clone_vm ;;
-            4) echo "DEBUG: Calling kiosk_list_vms"; kiosk_list_vms ;;
-            5) echo "DEBUG: Calling kiosk_delete_vm"; kiosk_delete_vm ;;
-            6) echo "DEBUG: Calling kiosk_settings"; kiosk_settings ;;
-            7) echo "DEBUG: Calling kiosk_theme_settings"; kiosk_theme_settings ;;
-            8) echo "DEBUG: Calling show_examples"; show_examples; kiosk_pause ;;
+            1) echo "Option 1 selected - Create Template"; sleep 2 ;;
+            2) echo "Option 2 selected - Provision VM"; sleep 2 ;;
+            3) echo "Option 3 selected - Clone VM"; sleep 2 ;;
+            4) echo "Option 4 selected - List VMs"; sleep 2 ;;
+            5) echo "Option 5 selected - Delete VM"; sleep 2 ;;
+            6) echo "Option 6 selected - Settings"; sleep 2 ;;
+            7) echo "Option 7 selected - Theme"; sleep 2 ;;
+            8) echo "Option 8 selected - Examples"; sleep 2 ;;
             0) echo ""; echo "👋 Exiting. Goodbye!"; exit 0 ;;
             *) echo ""; echo "❌ Invalid choice. Please select 0-8."; sleep 2 ;;
         esac
+        
+        echo "DEBUG: End of loop iteration"
     done
+    
+    echo "DEBUG: Exiting kiosk_menu function (this should never be reached)"
 }
 
 kiosk_theme_settings() {
