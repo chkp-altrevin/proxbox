@@ -46,6 +46,378 @@ clear_screen() {
     echo "╚══════════════════════════════════════════════════════════════════════════════╝"
     echo ""
 }
+# ========== COLOR THEME CONFIGURATION ==========
+# Default theme
+KIOSK_THEME="${KIOSK_THEME:-blue}"
+
+# Color definitions
+declare -A COLORS
+COLORS[reset]='\033[0m'
+COLORS[bold]='\033[1m'
+COLORS[dim]='\033[2m'
+
+# Foreground colors
+COLORS[black]='\033[30m'
+COLORS[red]='\033[31m'
+COLORS[green]='\033[32m'
+COLORS[yellow]='\033[33m'
+COLORS[blue]='\033[34m'
+COLORS[magenta]='\033[35m'
+COLORS[cyan]='\033[36m'
+COLORS[white]='\033[37m'
+
+# Bright foreground colors
+COLORS[bright_black]='\033[90m'
+COLORS[bright_red]='\033[91m'
+COLORS[bright_green]='\033[92m'
+COLORS[bright_yellow]='\033[93m'
+COLORS[bright_blue]='\033[94m'
+COLORS[bright_magenta]='\033[95m'
+COLORS[bright_cyan]='\033[96m'
+COLORS[bright_white]='\033[97m'
+
+# Background colors
+COLORS[bg_black]='\033[40m'
+COLORS[bg_red]='\033[41m'
+COLORS[bg_green]='\033[42m'
+COLORS[bg_yellow]='\033[43m'
+COLORS[bg_blue]='\033[44m'
+COLORS[bg_magenta]='\033[45m'
+COLORS[bg_cyan]='\033[46m'
+COLORS[bg_white]='\033[47m'
+
+# Bright background colors
+COLORS[bg_bright_black]='\033[100m'
+COLORS[bg_bright_red]='\033[101m'
+COLORS[bg_bright_green]='\033[102m'
+COLORS[bg_bright_yellow]='\033[103m'
+COLORS[bg_bright_blue]='\033[104m'
+COLORS[bg_bright_magenta]='\033[105m'
+COLORS[bg_bright_cyan]='\033[106m'
+COLORS[bg_bright_white]='\033[107m'
+
+# ========== THEME DEFINITIONS ==========
+set_theme_colors() {
+    case "$KIOSK_THEME" in
+        "blue")
+            THEME_PRIMARY="${COLORS[bright_blue]}"
+            THEME_SECONDARY="${COLORS[cyan]}"
+            THEME_ACCENT="${COLORS[bright_cyan]}"
+            THEME_SUCCESS="${COLORS[bright_green]}"
+            THEME_WARNING="${COLORS[bright_yellow]}"
+            THEME_ERROR="${COLORS[bright_red]}"
+            THEME_TEXT="${COLORS[bright_white]}"
+            THEME_DIM="${COLORS[bright_black]}"
+            THEME_BORDER="${COLORS[blue]}"
+            THEME_BG="${COLORS[bg_black]}"
+            THEME_NAME="🔵 Blue Ocean"
+            ;;
+        "green")
+            THEME_PRIMARY="${COLORS[bright_green]}"
+            THEME_SECONDARY="${COLORS[green]}"
+            THEME_ACCENT="${COLORS[bright_cyan]}"
+            THEME_SUCCESS="${COLORS[bright_green]}"
+            THEME_WARNING="${COLORS[bright_yellow]}"
+            THEME_ERROR="${COLORS[bright_red]}"
+            THEME_TEXT="${COLORS[bright_white]}"
+            THEME_DIM="${COLORS[bright_black]}"
+            THEME_BORDER="${COLORS[green]}"
+            THEME_BG="${COLORS[bg_black]}"
+            THEME_NAME="🟢 Matrix Green"
+            ;;
+        "purple")
+            THEME_PRIMARY="${COLORS[bright_magenta]}"
+            THEME_SECONDARY="${COLORS[magenta]}"
+            THEME_ACCENT="${COLORS[bright_cyan]}"
+            THEME_SUCCESS="${COLORS[bright_green]}"
+            THEME_WARNING="${COLORS[bright_yellow]}"
+            THEME_ERROR="${COLORS[bright_red]}"
+            THEME_TEXT="${COLORS[bright_white]}"
+            THEME_DIM="${COLORS[bright_black]}"
+            THEME_BORDER="${COLORS[magenta]}"
+            THEME_BG="${COLORS[bg_black]}"
+            THEME_NAME="🟣 Royal Purple"
+            ;;
+        "orange")
+            THEME_PRIMARY="${COLORS[bright_yellow]}"
+            THEME_SECONDARY="${COLORS[yellow]}"
+            THEME_ACCENT="${COLORS[bright_red]}"
+            THEME_SUCCESS="${COLORS[bright_green]}"
+            THEME_WARNING="${COLORS[bright_yellow]}"
+            THEME_ERROR="${COLORS[bright_red]}"
+            THEME_TEXT="${COLORS[bright_white]}"
+            THEME_DIM="${COLORS[bright_black]}"
+            THEME_BORDER="${COLORS[yellow]}"
+            THEME_BG="${COLORS[bg_black]}"
+            THEME_NAME="🟠 Sunset Orange"
+            ;;
+        "cyber")
+            THEME_PRIMARY="${COLORS[bright_cyan]}"
+            THEME_SECONDARY="${COLORS[cyan]}"
+            THEME_ACCENT="${COLORS[bright_green]}"
+            THEME_SUCCESS="${COLORS[bright_green]}"
+            THEME_WARNING="${COLORS[bright_yellow]}"
+            THEME_ERROR="${COLORS[bright_red]}"
+            THEME_TEXT="${COLORS[bright_cyan]}"
+            THEME_DIM="${COLORS[bright_black]}"
+            THEME_BORDER="${COLORS[cyan]}"
+            THEME_BG="${COLORS[bg_black]}"
+            THEME_NAME="🤖 Cyberpunk"
+            ;;
+        "minimal")
+            THEME_PRIMARY="${COLORS[white]}"
+            THEME_SECONDARY="${COLORS[bright_black]}"
+            THEME_ACCENT="${COLORS[white]}"
+            THEME_SUCCESS="${COLORS[green]}"
+            THEME_WARNING="${COLORS[yellow]}"
+            THEME_ERROR="${COLORS[red]}"
+            THEME_TEXT="${COLORS[white]}"
+            THEME_DIM="${COLORS[bright_black]}"
+            THEME_BORDER="${COLORS[bright_black]}"
+            THEME_BG="${COLORS[reset]}"
+            THEME_NAME="⚪ Minimal"
+            ;;
+        *)
+            # Default to blue theme
+            KIOSK_THEME="blue"
+            set_theme_colors
+            ;;
+    esac
+}
+
+# ========== ENHANCED DISPLAY FUNCTIONS ==========
+clear_screen() {
+    clear
+    # Set background color for the entire screen
+    echo -ne "$THEME_BG"
+    
+    # Create a gradient-like effect with different box styles
+    case "$KIOSK_THEME" in
+        "blue"|"cyber")
+            echo -e "${THEME_BORDER}╔══════════════════════════════════════════════════════════════════════════════╗${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}╚══════════════════════════════════════════════════════════════════════════════╝${COLORS[reset]}"
+            ;;
+        "green")
+            echo -e "${THEME_BORDER}┌──────────────────────────────────────────────────────────────────────────────┐${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}└──────────────────────────────────────────────────────────────────────────────┘${COLORS[reset]}"
+            ;;
+        "purple")
+            echo -e "${THEME_BORDER}╭──────────────────────────────────────────────────────────────────────────────╮${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}│${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}│${COLORS[reset]}"
+            echo -e "${THEME_BORDER}╰──────────────────────────────────────────────────────────────────────────────╯${COLORS[reset]}"
+            ;;
+        "orange")
+            echo -e "${THEME_BORDER}▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄${COLORS[reset]}"
+            echo -e "${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${COLORS[reset]}"
+            echo -e "${THEME_SECONDARY}                                  $THEME_NAME                                 ${COLORS[reset]}"
+            echo -e "${THEME_BORDER}▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀${COLORS[reset]}"
+            ;;
+        "minimal")
+            echo -e "${THEME_BORDER}=================================================================================${COLORS[reset]}"
+            echo -e "${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${COLORS[reset]}"
+            echo -e "${THEME_SECONDARY}                                  $THEME_NAME                                 ${COLORS[reset]}"
+            echo -e "${THEME_BORDER}=================================================================================${COLORS[reset]}"
+            ;;
+    esac
+    echo ""
+}
+
+show_current_status() {
+    echo -e "${THEME_ACCENT}📊 Current Configuration:${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   Storage: ${THEME_PRIMARY}$STORAGE${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   Default Memory: ${THEME_PRIMARY}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   Default Cores: ${THEME_PRIMARY}${CORES:-$DEFAULT_CORES}${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   CI User: ${THEME_PRIMARY}$CI_USER${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   Image Size: ${THEME_PRIMARY}$IMAGE_SIZE${COLORS[reset]}"
+    echo ""
+    
+    # Show recent VMs/Templates
+    echo -e "${THEME_ACCENT}📋 Recent VMs/Templates:${COLORS[reset]}"
+    if command -v qm &>/dev/null; then
+        qm list | tail -5 | awk -v color="${THEME_TEXT}" -v reset="${COLORS[reset]}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
+    else
+        echo -e "${THEME_WARNING}   ⚠️  Proxmox tools not available${COLORS[reset]}"
+    fi
+    echo ""
+    
+    # === STORAGE INFORMATION ===
+    echo -e "${THEME_ACCENT}💾 Storage Pools:${COLORS[reset]}"
+    if command -v pvesm &>/dev/null; then
+        local temp_storage="/tmp/storage_$$.tmp"
+        pvesm status 2>/dev/null > "$temp_storage"
+        if [[ -s "$temp_storage" ]]; then
+            tail -n +2 "$temp_storage" | head -5 | while read -r name type status total used avail percent; do
+                if [[ -n "$name" && -n "$total" ]]; then
+                    local size_gb=$(echo "scale=1; $total/1024/1024" | bc 2>/dev/null || echo "0")
+                    echo -e "${THEME_TEXT}   ${THEME_PRIMARY}$name${THEME_TEXT} $type ${THEME_SECONDARY}$size_gb GB${THEME_TEXT} (${THEME_ACCENT}$percent${THEME_TEXT})${COLORS[reset]}"
+                fi
+            done
+        else
+            echo -e "${THEME_WARNING}   No storage information available${COLORS[reset]}"
+        fi
+        rm -f "$temp_storage" 2>/dev/null
+    else
+        echo -e "${THEME_WARNING}   pvesm command not available${COLORS[reset]}"
+    fi
+    echo ""
+    
+    # === NETWORK INFORMATION ===
+    echo -e "${THEME_ACCENT}🌐 Network Bridges (UP):${COLORS[reset]}"
+    local bridge_list=""
+    local temp_network="/tmp/network_$$.tmp"
+    ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" > "$temp_network" 2>/dev/null
+    
+    if [[ -s "$temp_network" ]]; then
+        while read -r line; do
+            if [[ -n "$line" ]]; then
+                local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
+                if [[ -n "$bridge_list" ]]; then
+                    bridge_list="$bridge_list${THEME_DIM}, ${THEME_PRIMARY}$bridge"
+                else
+                    bridge_list="${THEME_PRIMARY}$bridge"
+                fi
+            fi
+        done < "$temp_network"
+        echo -e "${THEME_TEXT}   $bridge_list${COLORS[reset]}"
+    else
+        echo -e "${THEME_WARNING}   No UP vmbr bridges found${COLORS[reset]}"
+    fi
+    rm -f "$temp_network" 2>/dev/null
+    echo ""
+    
+    # === SYSTEM INFORMATION ===
+    echo -e "${THEME_ACCENT}⚙️  System Information:${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   Node: ${THEME_PRIMARY}$(hostname -s)${COLORS[reset]}"
+    echo -e "${THEME_TEXT}   Kernel: ${THEME_PRIMARY}$(uname -r)${COLORS[reset]}"
+    
+    if command -v pveversion &>/dev/null; then
+        local pve_version
+        pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
+        echo -e "${THEME_TEXT}   PVE Version: ${THEME_PRIMARY}$pve_version${COLORS[reset]}"
+    fi
+    
+    local uptime_info
+    uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
+    echo -e "${THEME_TEXT}   Uptime: ${THEME_PRIMARY}$uptime_info${COLORS[reset]}"
+    
+    # === VM/TEMPLATE COUNTS ===
+    if command -v qm &>/dev/null; then
+        local vm_count=0
+        local running_count=0
+        local template_count=0
+        
+        local temp_vmlist="/tmp/vmlist_$$.tmp"
+        qm list 2>/dev/null | tail -n +2 > "$temp_vmlist"
+        
+        if [[ -s "$temp_vmlist" ]]; then
+            while read -r vmid name status rest; do
+                if [[ "$vmid" =~ ^[0-9]+$ ]]; then
+                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
+                       grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                        ((template_count++))
+                    else
+                        ((vm_count++))
+                        if [[ "$status" == "running" ]]; then
+                            ((running_count++))
+                        fi
+                    fi
+                fi
+            done < "$temp_vmlist"
+            
+            echo -e "${THEME_TEXT}   VMs: ${THEME_PRIMARY}$vm_count${THEME_TEXT} total, ${THEME_SUCCESS}$running_count${THEME_TEXT} running${COLORS[reset]}"
+            echo -e "${THEME_TEXT}   Templates: ${THEME_PRIMARY}$template_count${COLORS[reset]}"
+        fi
+        rm -f "$temp_vmlist" 2>/dev/null
+    fi
+    echo ""
+}
+
+kiosk_menu() {
+    # Set theme colors
+    set_theme_colors
+    
+    while true; do
+        clear_screen
+        show_current_status
+        
+        echo -e "${THEME_ACCENT}🎛️  Main Menu - Select an action:${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} 📁 Create Template from Image    - Build template from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} 🖥️  Provision VM from Image      - Create VM from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} 🔄 Clone Existing VM/Template   - Clone from existing VMID${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}4)${THEME_TEXT} 📋 List All VMs/Templates       - Show all VMIDs${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}5)${THEME_TEXT} 🗑️  Delete VM/Template           - Remove by VMID${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}6)${THEME_TEXT} ⚙️  Settings                     - Configure defaults${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}7)${THEME_TEXT} 🎨 Theme                        - Change color theme${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}8)${THEME_TEXT} 📖 Show Examples                - Usage examples${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}0)${THEME_TEXT} 🚪 Exit                         - Quit kiosk mode${COLORS[reset]}"
+        echo ""
+        echo -ne "${THEME_ACCENT}Enter your choice [0-8]: ${COLORS[reset]}"
+        
+        local choice
+        read -r choice
+        
+        case "$choice" in
+            1) kiosk_create_template ;;
+            2) kiosk_provision_vm ;;
+            3) kiosk_clone_vm ;;
+            4) kiosk_list_vms ;;
+            5) kiosk_delete_vm ;;
+            6) kiosk_settings ;;
+            7) kiosk_theme_settings ;;
+            8) show_examples; kiosk_pause ;;
+            0) echo ""; echo -e "${THEME_SUCCESS}👋 Exiting. Goodbye!${COLORS[reset]}"; exit 0 ;;
+            *) echo ""; echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-8.${COLORS[reset]}"; sleep 2 ;;
+        esac
+    done
+}
+
+kiosk_theme_settings() {
+    while true; do
+        clear_screen
+        echo -e "${THEME_ACCENT}🎨 Theme Selection${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}Current Theme: ${THEME_PRIMARY}$THEME_NAME${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}Available Themes:${COLORS[reset]}"
+        echo ""
+        echo -e "${COLORS[bright_blue]}   1) 🔵 Blue Ocean      - Classic blue with cyan accents${COLORS[reset]}"
+        echo -e "${COLORS[bright_green]}   2) 🟢 Matrix Green    - Hacker-style green theme${COLORS[reset]}"
+        echo -e "${COLORS[bright_magenta]}   3) 🟣 Royal Purple    - Elegant purple theme${COLORS[reset]}"
+        echo -e "${COLORS[bright_yellow]}   4) 🟠 Sunset Orange   - Warm orange/yellow theme${COLORS[reset]}"
+        echo -e "${COLORS[bright_cyan]}   5) 🤖 Cyberpunk      - Futuristic cyan/green theme${COLORS[reset]}"
+        echo -e "${COLORS[white]}   6) ⚪ Minimal         - Clean black and white${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   0) 🔙 Back to main menu${COLORS[reset]}"
+        echo ""
+        echo -ne "${THEME_ACCENT}Select theme [0-6]: ${COLORS[reset]}"
+        
+        local choice
+        read -r choice
+        
+        case "$choice" in
+            1) KIOSK_THEME="blue"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Blue Ocean${COLORS[reset]}"; sleep 2 ;;
+            2) KIOSK_THEME="green"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Matrix Green${COLORS[reset]}"; sleep 2 ;;
+            3) KIOSK_THEME="purple"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Royal Purple${COLORS[reset]}"; sleep 2 ;;
+            4) KIOSK_THEME="orange"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Sunset Orange${COLORS[reset]}"; sleep 2 ;;
+            5) KIOSK_THEME="cyber"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Cyberpunk${COLORS[reset]}"; sleep 2 ;;
+            6) KIOSK_THEME="minimal"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Minimal${COLORS[reset]}"; sleep 2 ;;
+            0) return ;;
+            *) echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-6.${COLORS[reset]}"; sleep 2 ;;
+        esac
+    done
+}
+
+kiosk_pause() {
+    echo ""
+    echo -ne "${THEME_DIM}Press Enter to continue...${COLORS[reset]}"
+    read -r
+}
 
 show_current_status() {
     echo "📊 Current Configuration:"
@@ -182,7 +554,8 @@ kiosk_menu() {
         echo "   4) 📋 List All VMs/Templates       - Show all VMIDs"
         echo "   5) 🗑️  Delete VM/Template           - Remove by VMID"
         echo "   6) ⚙️  Settings                     - Configure defaults"
-        echo "   7) 📖 Show Examples                - Usage examples"
+        echo "   7) 🖥️  Modify Theme                 - Make it yours"
+        echo "   8) 📖 Show Examples                - Usage examples"
         echo "   0) 🚪 Exit                         - Quit kiosk mode"
         echo ""
         echo -n "Enter your choice [0-7]: "
@@ -197,7 +570,8 @@ kiosk_menu() {
             4) kiosk_list_vms ;;
             5) kiosk_delete_vm ;;
             6) kiosk_settings ;;
-            7) show_examples; kiosk_pause ;;
+            7) kiosk_theme_settings ;;
+            8) show_examples; kiosk_pause ;;
             0) echo ""; echo "👋 Exiting. Goodbye!"; exit 0 ;;
             *) echo ""; echo "❌ Invalid choice. Please select 0-7."; sleep 2 ;;
         esac
