@@ -50,51 +50,60 @@ clear_screen() {
 # Default theme
 KIOSK_THEME="${KIOSK_THEME:-blue}"
 
-# Color definitions
-declare -A COLORS
-COLORS[reset]='\033[0m'
-COLORS[bold]='\033[1m'
-COLORS[dim]='\033[2m'
+# Initialize theme colors on script load
+initialize_themes() {
+    # Color definitions
+    declare -gA COLORS
+    COLORS[reset]='\033[0m'
+    COLORS[bold]='\033[1m'
+    COLORS[dim]='\033[2m'
 
-# Foreground colors
-COLORS[black]='\033[30m'
-COLORS[red]='\033[31m'
-COLORS[green]='\033[32m'
-COLORS[yellow]='\033[33m'
-COLORS[blue]='\033[34m'
-COLORS[magenta]='\033[35m'
-COLORS[cyan]='\033[36m'
-COLORS[white]='\033[37m'
+    # Foreground colors
+    COLORS[black]='\033[30m'
+    COLORS[red]='\033[31m'
+    COLORS[green]='\033[32m'
+    COLORS[yellow]='\033[33m'
+    COLORS[blue]='\033[34m'
+    COLORS[magenta]='\033[35m'
+    COLORS[cyan]='\033[36m'
+    COLORS[white]='\033[37m'
 
-# Bright foreground colors
-COLORS[bright_black]='\033[90m'
-COLORS[bright_red]='\033[91m'
-COLORS[bright_green]='\033[92m'
-COLORS[bright_yellow]='\033[93m'
-COLORS[bright_blue]='\033[94m'
-COLORS[bright_magenta]='\033[95m'
-COLORS[bright_cyan]='\033[96m'
-COLORS[bright_white]='\033[97m'
+    # Bright foreground colors
+    COLORS[bright_black]='\033[90m'
+    COLORS[bright_red]='\033[91m'
+    COLORS[bright_green]='\033[92m'
+    COLORS[bright_yellow]='\033[93m'
+    COLORS[bright_blue]='\033[94m'
+    COLORS[bright_magenta]='\033[95m'
+    COLORS[bright_cyan]='\033[96m'
+    COLORS[bright_white]='\033[97m'
 
-# Background colors
-COLORS[bg_black]='\033[40m'
-COLORS[bg_red]='\033[41m'
-COLORS[bg_green]='\033[42m'
-COLORS[bg_yellow]='\033[43m'
-COLORS[bg_blue]='\033[44m'
-COLORS[bg_magenta]='\033[45m'
-COLORS[bg_cyan]='\033[46m'
-COLORS[bg_white]='\033[47m'
+    # Background colors
+    COLORS[bg_black]='\033[40m'
+    COLORS[bg_red]='\033[41m'
+    COLORS[bg_green]='\033[42m'
+    COLORS[bg_yellow]='\033[43m'
+    COLORS[bg_blue]='\033[44m'
+    COLORS[bg_magenta]='\033[45m'
+    COLORS[bg_cyan]='\033[46m'
+    COLORS[bg_white]='\033[47m'
 
-# Bright background colors
-COLORS[bg_bright_black]='\033[100m'
-COLORS[bg_bright_red]='\033[101m'
-COLORS[bg_bright_green]='\033[102m'
-COLORS[bg_bright_yellow]='\033[103m'
-COLORS[bg_bright_blue]='\033[104m'
-COLORS[bg_bright_magenta]='\033[105m'
-COLORS[bg_bright_cyan]='\033[106m'
-COLORS[bg_bright_white]='\033[107m'
+    # Bright background colors
+    COLORS[bg_bright_black]='\033[100m'
+    COLORS[bg_bright_red]='\033[101m'
+    COLORS[bg_bright_green]='\033[102m'
+    COLORS[bg_bright_yellow]='\033[103m'
+    COLORS[bg_bright_blue]='\033[104m'
+    COLORS[bg_bright_magenta]='\033[105m'
+    COLORS[bg_bright_cyan]='\033[106m'
+    COLORS[bg_bright_white]='\033[107m'
+    
+    # Set initial theme
+    set_theme_colors
+}
+
+# Call initialization
+initialize_themes
 
 # ========== THEME DEFINITIONS ==========
 set_theme_colors() {
@@ -187,6 +196,11 @@ set_theme_colors() {
 
 # ========== ENHANCED DISPLAY FUNCTIONS ==========
 clear_screen() {
+    # Initialize theme if not already set
+    if [[ -z "${THEME_BG:-}" ]]; then
+        set_theme_colors
+    fi
+    
     clear
     # Set background color for the entire screen
     echo -ne "$THEME_BG"
