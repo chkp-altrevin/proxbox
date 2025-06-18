@@ -812,7 +812,7 @@ kiosk_list_vms() {
             vmids=($(echo "$vm_list" | awk 'NR>1 && $1 ~ /^[0-9]+$/ {print $1}'))
             
             # Build template detection in batch - much faster approach
-            local template_map=()
+            declare -A template_map
             
             # Method 1: Check template flag in one go using directory listing (fastest)
             if [[ -d "/etc/pve/qemu-server" ]]; then
