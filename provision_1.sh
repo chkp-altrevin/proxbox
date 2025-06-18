@@ -357,38 +357,38 @@ show_current_status() {
     uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
     echo -e "${THEME_TEXT}   Uptime: ${THEME_PRIMARY}$uptime_info${COLORS[reset]}"
     
+    # COMMENT OUT THE VM/TEMPLATE COUNTS SECTION TEMPORARILY
     # === VM/TEMPLATE COUNTS ===
-    if command -v qm &>/dev/null; then
-        local vm_count=0
-        local running_count=0
-        local template_count=0
-        
-        local temp_vmlist="/tmp/vmlist_$$.tmp"
-        qm list 2>/dev/null | tail -n +2 > "$temp_vmlist"
-        
-        if [[ -s "$temp_vmlist" ]]; then
-            while read -r vmid name status rest; do
-                if [[ "$vmid" =~ ^[0-9]+$ ]]; then
-                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
-                       grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-                        ((template_count++))
-                    else
-                        ((vm_count++))
-                        if [[ "$status" == "running" ]]; then
-                            ((running_count++))
-                        fi
-                    fi
-                fi
-            done < "$temp_vmlist"
-            
-            echo -e "${THEME_TEXT}   VMs: ${THEME_PRIMARY}$vm_count${THEME_TEXT} total, ${THEME_SUCCESS}$running_count${THEME_TEXT} running${COLORS[reset]}"
-            echo -e "${THEME_TEXT}   Templates: ${THEME_PRIMARY}$template_count${COLORS[reset]}"
-        fi
-        rm -f "$temp_vmlist" 2>/dev/null
-    fi
+    # if command -v qm &>/dev/null; then
+    #     local vm_count=0
+    #     local running_count=0
+    #     local template_count=0
+    #     
+    #     local temp_vmlist="/tmp/vmlist_$$.tmp"
+    #     qm list 2>/dev/null | tail -n +2 > "$temp_vmlist"
+    #     
+    #     if [[ -s "$temp_vmlist" ]]; then
+    #         while read -r vmid name status rest; do
+    #             if [[ "$vmid" =~ ^[0-9]+$ ]]; then
+    #                 if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
+    #                    grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+    #                     ((template_count++))
+    #                 else
+    #                     ((vm_count++))
+    #                     if [[ "$status" == "running" ]]; then
+    #                         ((running_count++))
+    #                     fi
+    #                 fi
+    #             fi
+    #         done < "$temp_vmlist"
+    #         
+    #         echo -e "${THEME_TEXT}   VMs: ${THEME_PRIMARY}$vm_count${THEME_TEXT} total, ${THEME_SUCCESS}$running_count${THEME_TEXT} running${COLORS[reset]}"
+    #         echo -e "${THEME_TEXT}   Templates: ${THEME_PRIMARY}$template_count${COLORS[reset]}"
+    #     fi
+    #     rm -f "$temp_vmlist" 2>/dev/null
+    # fi
     echo ""
 }
-
 
 kiosk_menu() {
     echo "DEBUG: Entering kiosk_menu function"
