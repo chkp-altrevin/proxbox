@@ -903,18 +903,9 @@ kiosk_list_vms() {
                 echo ""
                 
                 # Navigation options
-                local nav_options="Navigation: "
-                if [[ $page -gt 1 ]]; then
-                    nav_options+="[P]revious  "
-                fi
-                if [[ $page -lt $total_pages ]]; then
-                    nav_options+="[N]ext  "
-                fi
-                nav_options+="[Q]uit"
-                
-                echo "$nav_options"
+                echo "Navigation: [Q]uit to return to menu"
                 echo ""
-                echo -n "Choose action: "
+                echo -n "Press Q to quit, or Enter to continue: "
                 
                 local action
                 read -r action
@@ -940,8 +931,11 @@ kiosk_list_vms() {
                     q|quit)
                         break  # Exit pagination loop
                         ;;
+                    "")
+                        # Just pressed Enter - continue/refresh the display
+                        ;;
                     *)
-                        echo "❌ Invalid option. Use P (previous), N (next), or Q (quit)"
+                        echo "❌ Invalid option. Use P (previous), N (next), Q (quit), or just press Enter"
                         sleep 2
                         ;;
                 esac
