@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+#!/usr/bin/env bash
+set -euo pipefail
+
 # ========== DEFAULT CONFIGURATION ==========
 # Set all default values BEFORE loading .env or using them anywhere
 
@@ -28,20 +31,46 @@ CI_USER="${CI_USER:-$DEFAULT_CI_USER}"
 CI_SSH_KEY_PATH="${CI_SSH_KEY_PATH:-$DEFAULT_CI_SSH_KEY_PATH}"
 CI_TAGS="${CI_TAGS:-$DEFAULT_CI_TAGS}"
 
-# System defaults
+# System defaults (VMID-independent)
 DEFAULT_OSTYPE="l26"
 DEFAULT_BIOS="ovmf"
 DEFAULT_MACHINE="q35"
 DEFAULT_CPU="host"
 DEFAULT_VGA="serial0"
-DEFAULT_SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
 CI_BOOT_ORDER="virtio0"
 CI_VENDOR_SNIPPET="local:snippets/vendor.yaml"
+
+# Variables that need initialization
+DEFAULT_VM_NAME="ubuntu-template"
+VM_NAME="${VM_NAME:-$DEFAULT_VM_NAME}"
+VMID="${VMID:-}"
+DRY_RUN="${DRY_RUN:-0}"
+PROVISION_VM="${PROVISION_VM:-0}"
+KIOSK_MODE="${KIOSK_MODE:-false}"
 
 # Logging
 LOG_FILE="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
 
-# Load environment configuration
+# Initialize logging function early
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+error_exit() {
+    log "ERROR: $1"
+    exit 1
+}
+
+# Function to set VMID-dependent defaults (call this when VMID is known)
+set_vmid_defaults() {
+    if [[ -n "$VMID" ]]; then
+        DEFAULT_SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
+    else
+        DEFAULT_SERIAL0="socket"
+    fi
+}
+
+# Load environment configuration AFTER setting defaults
 if [[ -f ".env" ]]; then
     source .env
     log "📄 Loaded configuration from .env"
@@ -50,14 +79,6 @@ fi
 # ========== COLOR THEME CONFIGURATION ==========
 # Default theme
 KIOSK_THEME="${KIOSK_THEME:-blue}"
-
-# Additional missing defaults that are referenced in the script
-DEFAULT_VM_NAME="ubuntu-template"
-VM_NAME="${VM_NAME:-$DEFAULT_VM_NAME}"
-VMID="${VMID:-}"
-DRY_RUN="${DRY_RUN:-0}"
-PROVISION_VM="${PROVISION_VM:-0}"
-KIOSK_MODE="${KIOSK_MODE:-false}"
 
 # ========== LOGGING ==========
 log() {
@@ -2032,6 +2053,9 @@ create_template() {
     # Validate inputs
     [[ -z "$IMAGE" ]] && error_exit "--image flag is required"
     [[ -z "$VMID" ]] && VMID=$(get_next_vmid)
+    
+    # Set VMID-dependent defaults now that we have a VMID
+    set_vmid_defaults()
     
     log "🆔 Using VMID: $VMID"
     
