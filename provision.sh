@@ -42,7 +42,7 @@ error_exit() {
 clear_screen() {
     clear
     echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-    echo "║                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ║"
+    echo "║                      🏗️  PROXMOX TEMPLATE PROVISIONER      DEV              ║"
     echo "╚══════════════════════════════════════════════════════════════════════════════╝"
     echo ""
 }
