@@ -48,73 +48,7 @@ clear_screen() {
 }
 
 show_current_status() {
-    echo "📊 System Overview:"
-    echo ""
-    
-    # Simple approach - gather info step by step with error handling
-    
-    # === STORAGE INFORMATION ===
-    echo "💾 Storage:"
-    if command -v pvesm &>/dev/null; then
-        local storage_output
-        storage_output=$(pvesm status 2>/dev/null | tail -n +2 | head -5)
-        if [[ -n "$storage_output" ]]; then
-            echo "$storage_output" | while read -r line; do
-                echo "   $line"
-            done
-        else
-            echo "   No storage information available"
-        fi
-    else
-        echo "   pvesm command not available"
-    fi
-    echo ""
-    
-    # === NETWORK INFORMATION ===
-    echo "🌐 Networks:"
-    local network_found=false
-    
-    # Try to find network bridges
-    if ip link show 2>/dev/null | grep -q "vmbr\|br-"; then
-        ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr|^[0-9]+:.*br-" | while read -r line; do
-            local bridge_name
-            bridge_name=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
-            echo "   $bridge_name (bridge)"
-            network_found=true
-        done
-    fi
-    
-    if [[ "$network_found" == "false" ]]; then
-        echo "   No network bridges found"
-    fi
-    echo ""
-    
-    # === SYSTEM INFORMATION ===
-    echo "⚙️  System:"
-    
-    # PVE Version
-    if command -v pveversion &>/dev/null; then
-        local pve_ver
-        pve_ver=$(pveversion 2>/dev/null | head -1 | awk '{print $2}' || echo "Unknown")
-        echo "   PVE Version: $pve_ver"
-    else
-        echo "   PVE Version: Not available"
-    fi
-    
-    # Kernel
-    echo "   Kernel: $(uname -r)"
-    
-    # Node name
-    echo "   Node: $(hostname -s)"
-    
-    # Uptime
-    local uptime_simple
-    uptime_simple=$(uptime | sed 's/.*up //' | sed 's/, load.*//' | sed 's/,.*users.*//')
-    echo "   Uptime: $uptime_simple"
-    echo ""
-    
-    # === VM CONFIGURATION ===
-    echo "🖥️  Configuration:"
+    echo "📊 Current Configuration:"
     echo "   Storage: $STORAGE"
     echo "   Default Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
     echo "   Default Cores: ${CORES:-$DEFAULT_CORES}"
@@ -122,50 +56,33 @@ show_current_status() {
     echo "   Image Size: $IMAGE_SIZE"
     echo ""
     
-    # === VM/TEMPLATE COUNTS ===
-    echo "📊 VM Statistics:"
+    # Show recent VMs/Templates
+    echo "📋 Recent VMs/Templates:"
     if command -v qm &>/dev/null; then
-        local total_vms=0
-        local running_vms=0
-        local stopped_vms=0
-        local templates=0
-        
-        # Count VMs safely
-        while read -r line; do
-            if [[ "$line" =~ ^[[:space:]]*[0-9]+ ]]; then
-                ((total_vms++))
-                if echo "$line" | grep -q "running"; then
-                    ((running_vms++))
-                elif echo "$line" | grep -q "stopped"; then
-                    ((stopped_vms++))
-                fi
-                
-                # Check if it's a template (simple approach)
-                local vmid
-                vmid=$(echo "$line" | awk '{print $1}')
-                if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
-                   grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-                    ((templates++))
-                    ((total_vms--))  # Don't count templates as VMs
-                fi
-            fi
-        done < <(qm list 2>/dev/null | tail -n +2)
-        
-        echo "   Total VMs: $total_vms"
-        echo "   Running: $running_vms"
-        echo "   Stopped: $stopped_vms"
-        echo "   Templates: $templates"
+        qm list | tail -5 | awk 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s\n", $0}'
     else
         echo "   ⚠️  Proxmox tools not available"
     fi
     echo ""
     
-    # Show recent VMs/Templates (simplified)
-    echo "📋 Recent VMs/Templates:"
-    if command -v qm &>/dev/null; then
-        qm list 2>/dev/null | tail -5 | awk 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s\n", $0}'
+    # Add system info step by step to see what breaks
+    echo "💾 Storage Info:"
+    if command -v pvesm &>/dev/null; then
+        pvesm status 2>/dev/null | head -3 || echo "   Storage command failed"
     else
-        echo "   ⚠️  Proxmox tools not available"
+        echo "   pvesm not available"
+    fi
+    echo ""
+    
+    echo "🌐 Network Info:"
+    echo "   $(ip link show | grep -c vmbr) bridge(s) detected"
+    echo ""
+    
+    echo "⚙️  System Info:"
+    echo "   Node: $(hostname)"
+    echo "   Kernel: $(uname -r)"
+    if command -v pveversion &>/dev/null; then
+        echo "   PVE: $(pveversion | head -1)"
     fi
     echo ""
 }
