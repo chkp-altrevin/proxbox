@@ -48,15 +48,199 @@ clear_screen() {
 }
 
 show_current_status() {
-    echo "📊 Current Configuration:"
-    echo "   Storage: $STORAGE"
-    echo "   Default Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
-    echo "   Default Cores: ${CORES:-$DEFAULT_CORES}"
-    echo "   CI User: $CI_USER"
-    echo "   Image Size: $IMAGE_SIZE"
+    echo "📊 System Overview:"
     echo ""
     
-    # Show recent VMs/Templates
+    # Get terminal width for layout calculations
+    local term_width=${COLUMNS:-80}
+    local col_width=$((term_width / 3))
+    
+    # Collect system information
+    local storage_info=""
+    local network_info=""
+    local system_info=""
+    local vm_info=""
+    
+    # === STORAGE INFORMATION ===
+    if command -v pvesm &>/dev/null; then
+        storage_info=$(pvesm status 2>/dev/null | awk 'NR>1 {
+            printf "   %-12s %s\n", $1, $3
+        }' | head -5)
+        if [[ -z "$storage_info" ]]; then
+            storage_info="   No storage found"
+        fi
+    else
+        storage_info="   pvesm not available"
+    fi
+    
+    # === NETWORK INFORMATION ===
+    if command -v pvesh &>/dev/null; then
+        network_info=$(pvesh get /nodes/$(hostname)/network 2>/dev/null | \
+            jq -r '.[] | select(.type=="bridge" or .type=="OVSBridge") | "\(.iface) (\(.type))"' 2>/dev/null | \
+            awk '{printf "   %s\n", $0}' | head -5)
+        if [[ -z "$network_info" ]]; then
+            # Fallback to basic network interface detection
+            network_info=$(ip link show | grep -E '^[0-9]+:.*vmbr|^[0-9]+:.*br' | \
+                cut -d: -f2 | awk '{printf "   %s (bridge)\n", $1}' | head -5)
+            if [[ -z "$network_info" ]]; then
+                network_info="   No bridges found"
+            fi
+        fi
+    else
+        # Simple fallback
+        network_info=$(ip link show | grep -E 'vmbr|br-' | \
+            cut -d: -f2 | awk '{printf "   %s\n", $1}' | head -5)
+        if [[ -z "$network_info" ]]; then
+            network_info="   No bridges detected"
+        fi
+    fi
+    
+    # === PROXMOX VERSION INFO ===
+    if [[ -f "/usr/bin/pveversion" ]]; then
+        local pve_version
+        pve_version=$(pveversion --verbose 2>/dev/null | head -1 | awk '{print $2}')
+        system_info="   PVE: ${pve_version:-Unknown}"
+        
+        # Add kernel version
+        local kernel_version
+        kernel_version=$(uname -r | cut -d- -f1)
+        system_info+="\n   Kernel: $kernel_version"
+        
+        # Add node info
+        local node_name
+        node_name=$(hostname -s)
+        system_info+="\n   Node: $node_name"
+        
+        # Add uptime
+        local uptime_info
+        uptime_info=$(uptime | awk -F'up ' '{print $2}' | awk -F', load' '{print $1}' | sed 's/^ *//')
+        system_info+="\n   Uptime: $uptime_info"
+    else
+        system_info="   PVE tools not available\n   Kernel: $(uname -r)\n   Node: $(hostname -s)"
+    fi
+    
+    # === VM/TEMPLATE COUNT ===
+    if command -v qm &>/dev/null; then
+        local vm_count=0
+        local template_count=0
+        local running_count=0
+        
+        # Count VMs and templates
+        while read -r line; do
+            if [[ "$line" =~ ^[[:space:]]*([0-9]+)[[:space:]]+.*[[:space:]]+([a-z]+)[[:space:]] ]]; then
+                local vmid="${BASH_REMATCH[1]}"
+                local status="${BASH_REMATCH[2]}"
+                
+                # Check if it's a template
+                if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
+                   grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
+                    ((template_count++))
+                else
+                    ((vm_count++))
+                    if [[ "$status" == "running" ]]; then
+                        ((running_count++))
+                    fi
+                fi
+            fi
+        done < <(qm list 2>/dev/null | tail -n +2)
+        
+        vm_info="   VMs: $vm_count (${running_count} running)"
+        vm_info+="\n   Templates: $template_count"
+        vm_info+="\n   Storage: $STORAGE"
+        vm_info+="\n   Def. Memory: ${MEMORY:-$DEFAULT_MEMORY}MB"
+        vm_info+="\n   Def. Cores: ${CORES:-$DEFAULT_CORES}"
+    else
+        vm_info="   Proxmox tools not available"
+    fi
+    
+    # === DISPLAY IN COLUMNS ===
+    if [[ $term_width -gt 120 ]]; then
+        # Wide terminal - 3 columns
+        echo "┌─────────────────────────────┬─────────────────────────────┬─────────────────────────────┐"
+        echo "│         💾 STORAGE          │         🌐 NETWORKS         │         ⚙️  SYSTEM          │"
+        echo "├─────────────────────────────┼─────────────────────────────┼─────────────────────────────┤"
+        
+        # Convert to arrays for easier handling
+        IFS=$'\n' read -rd '' -a storage_lines <<< "$storage_info"
+        IFS=$'\n' read -rd '' -a network_lines <<< "$network_info"
+        IFS=$'\n' read -rd '' -a system_lines <<< "$system_info"
+        
+        # Find max lines
+        local max_lines=${#storage_lines[@]}
+        if [[ ${#network_lines[@]} -gt $max_lines ]]; then
+            max_lines=${#network_lines[@]}
+        fi
+        if [[ ${#system_lines[@]} -gt $max_lines ]]; then
+            max_lines=${#system_lines[@]}
+        fi
+        
+        # Print rows
+        for ((i=0; i<max_lines; i++)); do
+            local col1="${storage_lines[$i]:-}"
+            local col2="${network_lines[$i]:-}"
+            local col3="${system_lines[$i]:-}"
+            
+            printf "│%-29s│%-29s│%-29s│\n" "$col1" "$col2" "$col3"
+        done
+        
+        echo "└─────────────────────────────┴─────────────────────────────┴─────────────────────────────┘"
+        echo ""
+        
+        # Add VM info in a separate section
+        echo "🖥️  VM Configuration & Count:"
+        echo -e "$vm_info"
+        
+    elif [[ $term_width -gt 80 ]]; then
+        # Medium terminal - 2 columns
+        echo "┌─────────────────────────────────────┬─────────────────────────────────────┐"
+        echo "│              💾 STORAGE             │              🌐 NETWORKS            │"
+        echo "├─────────────────────────────────────┼─────────────────────────────────────┤"
+        
+        IFS=$'\n' read -rd '' -a storage_lines <<< "$storage_info"
+        IFS=$'\n' read -rd '' -a network_lines <<< "$network_info"
+        
+        local max_lines=${#storage_lines[@]}
+        if [[ ${#network_lines[@]} -gt $max_lines ]]; then
+            max_lines=${#network_lines[@]}
+        fi
+        
+        for ((i=0; i<max_lines; i++)); do
+            local col1="${storage_lines[$i]:-}"
+            local col2="${network_lines[$i]:-}"
+            printf "│%-37s│%-37s│\n" "$col1" "$col2"
+        done
+        
+        echo "└─────────────────────────────────────┴─────────────────────────────────────┘"
+        echo ""
+        
+        echo "⚙️  System Information:"
+        echo -e "$system_info"
+        echo ""
+        
+        echo "🖥️  VM Configuration:"
+        echo -e "$vm_info"
+        
+    else
+        # Narrow terminal - single column
+        echo "💾 Storage:"
+        echo "$storage_info"
+        echo ""
+        
+        echo "🌐 Networks:"
+        echo "$network_info"
+        echo ""
+        
+        echo "⚙️  System:"
+        echo -e "$system_info"
+        echo ""
+        
+        echo "🖥️  VMs:"
+        echo -e "$vm_info"
+    fi
+    
+    echo ""
+    
+    # Show recent VMs/Templates (keep this section as is)
     echo "📋 Recent VMs/Templates:"
     if command -v qm &>/dev/null; then
         qm list | tail -5 | awk 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s\n", $0}'
