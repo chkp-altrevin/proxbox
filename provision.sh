@@ -2045,7 +2045,7 @@ runcmd:
   - systemctl start qemu-guest-agent
   - systemctl enable qemu-guest-agent
 EOF
-        log "✅ Vendor snippet created at $snippet_path"
+        log "✅ Vendor snipppet created at $snippet_path"
     fi
 }
 
