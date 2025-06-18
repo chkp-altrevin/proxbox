@@ -953,6 +953,7 @@ kiosk_list_vms() {
         echo "❌ Proxmox tools not available"
     fi
     
+    # THIS WAS THE MISSING LINE - ADD THE PAUSE CALL
     kiosk_pause
 }
 
