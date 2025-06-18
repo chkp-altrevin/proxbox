@@ -343,61 +343,43 @@ show_current_status() {
 }
 
 kiosk_menu() {
-    echo "DEBUG: Entering kiosk_menu function"
+    # Set theme colors
+    set_theme_colors
     
     while true; do
-        echo "DEBUG: Starting loop iteration"
-        
-        # Use basic clear and header
-        clear
-        echo "================================================================================"
-        echo "                      🏗️  PROXMOX TEMPLATE PROVISIONER                      "
-        echo "================================================================================"
-        echo ""
-        
-        echo "DEBUG: About to call show_current_status"
+        clear_screen
         show_current_status
-        echo "DEBUG: show_current_status completed"
         
-        echo "DEBUG: About to display menu options"
-        echo "🎛️  Main Menu - Select an action:"
+        echo -e "${THEME_ACCENT}🎛️  Main Menu - Select an action:${COLORS[reset]}"
         echo ""
-        echo "   1) 📁 Create Template from Image    - Build template from ISO/IMG"
-        echo "   2) 🖥️  Provision VM from Image      - Create VM from ISO/IMG"
-        echo "   3) 🔄 Clone Existing VM/Template   - Clone from existing VMID"
-        echo "   4) 📋 List All VMs/Templates       - Show all VMIDs"
-        echo "   5) 🗑️  Delete VM/Template           - Remove by VMID"
-        echo "   6) ⚙️  Settings                     - Configure defaults"
-        echo "   7) 🎨 Theme                        - Change color theme"
-        echo "   8) 📖 Show Examples                - Usage examples"
-        echo "   0) 🚪 Exit                         - Quit kiosk mode"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} 📁 Create Template from Image    - Build template from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} 🖥️  Provision VM from Image      - Create VM from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} 🔄 Clone Existing VM/Template   - Clone from existing VMID${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}4)${THEME_TEXT} 📋 List All VMs/Templates       - Show all VMIDs${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}5)${THEME_TEXT} 🗑️  Delete VM/Template           - Remove by VMID${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}6)${THEME_TEXT} ⚙️  Settings                     - Configure defaults${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}7)${THEME_TEXT} 🎨 Theme                        - Change color theme${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}8)${THEME_TEXT} 📖 Show Examples                - Usage examples${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}0)${THEME_TEXT} 🚪 Exit                         - Quit kiosk mode${COLORS[reset]}"
         echo ""
-        echo -n "Enter your choice [0-8]: "
-        
-        echo "DEBUG: Menu displayed, waiting for read"
+        echo -ne "${THEME_ACCENT}Enter your choice [0-8]: ${COLORS[reset]}"
         
         local choice
         read -r choice
         
-        echo "DEBUG: User entered: '$choice'"
-        
         case "$choice" in
-            1) echo "Option 1 selected - Create Template"; sleep 2 ;;
-            2) echo "Option 2 selected - Provision VM"; sleep 2 ;;
-            3) echo "Option 3 selected - Clone VM"; sleep 2 ;;
-            4) echo "Option 4 selected - List VMs"; sleep 2 ;;
-            5) echo "Option 5 selected - Delete VM"; sleep 2 ;;
-            6) echo "Option 6 selected - Settings"; sleep 2 ;;
-            7) echo "Option 7 selected - Theme"; sleep 2 ;;
-            8) echo "Option 8 selected - Examples"; sleep 2 ;;
-            0) echo ""; echo "👋 Exiting. Goodbye!"; exit 0 ;;
-            *) echo ""; echo "❌ Invalid choice. Please select 0-8."; sleep 2 ;;
+            1) kiosk_create_template ;;
+            2) kiosk_provision_vm ;;
+            3) kiosk_clone_vm ;;
+            4) kiosk_list_vms ;;
+            5) kiosk_delete_vm ;;
+            6) kiosk_settings ;;
+            7) kiosk_theme_settings ;;
+            8) show_examples; kiosk_pause ;;
+            0) echo ""; echo -e "${THEME_SUCCESS}👋 Exiting. Goodbye!${COLORS[reset]}"; exit 0 ;;
+            *) echo ""; echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-8.${COLORS[reset]}"; sleep 2 ;;
         esac
-        
-        echo "DEBUG: End of loop iteration"
     done
-    
-    echo "DEBUG: Exiting kiosk_menu function (this should never be reached)"
 }
 
 kiosk_theme_settings() {
