@@ -1867,48 +1867,6 @@ kiosk_pause() {
     read -r
 }
 
-kiosk_theme_settings() {
-    while true; do
-        clear_screen
-        echo -e "${THEME_ACCENT}🎨 Theme Selection${COLORS[reset]}"
-        echo ""
-        echo -e "${THEME_TEXT}Current Theme: ${THEME_PRIMARY}$THEME_NAME${COLORS[reset]}"
-        echo ""
-        echo -e "${THEME_TEXT}Available Themes:${COLORS[reset]}"
-        echo ""
-        echo -e "${COLORS[bright_blue]}   1) 🔵 Blue Ocean      - Classic blue with cyan accents${COLORS[reset]}"
-        echo -e "${COLORS[bright_green]}   2) 🟢 Matrix Green    - Hacker-style green theme${COLORS[reset]}"
-        echo -e "${COLORS[bright_magenta]}   3) 🟣 Royal Purple    - Elegant purple theme${COLORS[reset]}"
-        echo -e "${COLORS[bright_yellow]}   4) 🟠 Sunset Orange   - Warm orange/yellow theme${COLORS[reset]}"
-        echo -e "${COLORS[bright_cyan]}   5) 🤖 Cyberpunk      - Futuristic cyan/green theme${COLORS[reset]}"
-        echo -e "${COLORS[white]}   6) ⚪ Minimal         - Clean black and white${COLORS[reset]}"
-        echo ""
-        echo -e "${THEME_TEXT}   0) 🔙 Back to main menu${COLORS[reset]}"
-        echo ""
-        echo -ne "${THEME_ACCENT}Select theme [0-6]: ${COLORS[reset]}"
-        
-        local choice
-        read -r choice
-        
-        case "$choice" in
-            1) KIOSK_THEME="blue"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Blue Ocean${COLORS[reset]}"; sleep 2 ;;
-            2) KIOSK_THEME="green"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Matrix Green${COLORS[reset]}"; sleep 2 ;;
-            3) KIOSK_THEME="purple"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Royal Purple${COLORS[reset]}"; sleep 2 ;;
-            4) KIOSK_THEME="orange"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Sunset Orange${COLORS[reset]}"; sleep 2 ;;
-            5) KIOSK_THEME="cyber"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Cyberpunk${COLORS[reset]}"; sleep 2 ;;
-            6) KIOSK_THEME="minimal"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Minimal${COLORS[reset]}"; sleep 2 ;;
-            0) return ;;
-            *) echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-6.${COLORS[reset]}"; sleep 2 ;;
-        esac
-    done
-}
-
-kiosk_pause() {
-    echo ""
-    echo -ne "${THEME_DIM}Press Enter to continue...${COLORS[reset]}"
-    read -r
-}
-
 # ========== HELP MENUS ==========
 show_help() {
     cat <<EOF
