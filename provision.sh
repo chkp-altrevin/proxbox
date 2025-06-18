@@ -2055,7 +2055,7 @@ create_template() {
     [[ -z "$VMID" ]] && VMID=$(get_next_vmid)
     
     # Set VMID-dependent defaults now that we have a VMID
-    set_vmid_defaults()
+    set_vmid_defaults
     
     log "🆔 Using VMID: $VMID"
     
