@@ -67,9 +67,11 @@ error_exit() {
 # Function to set VMID-dependent defaults (call this when VMID is known)
 set_vmid_defaults() {
     if [[ -n "$VMID" ]]; then
-        DEFAULT_SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
+        # For Proxmox VE 7.x and later, use this format
+        SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
     else
-        DEFAULT_SERIAL0="socket"
+        # Fallback to simple socket
+        SERIAL0="socket"
     fi
 }
 
@@ -2156,7 +2158,7 @@ create_template() {
     run_or_dry "qemu-img resize '$IMAGE' $IMAGE_SIZE"
     
     log "🛠️ Creating VM $VMID..."
-    run_or_dry "qm create $VMID --name '$VM_NAME' --ostype $DEFAULT_OSTYPE --memory $MEMORY --cores $CORES --sockets $SOCKETS --agent 1 --bios $DEFAULT_BIOS --machine $DEFAULT_MACHINE --efidisk0 $STORAGE:0,pre-enrolled-keys=0 --cpu $DEFAULT_CPU --serial0 socket --net0 virtio,bridge=vmbr0"
+    run_or_dry "qm create $VMID --name '$VM_NAME' --ostype $DEFAULT_OSTYPE --memory $MEMORY --cores $CORES --sockets $SOCKETS --agent 1 --bios $DEFAULT_BIOS --machine $DEFAULT_MACHINE --efidisk0 $STORAGE:0,pre-enrolled-keys=0 --cpu $DEFAULT_CPU --vga $DEFAULT_VGA --serial0 $SERIAL0 --net0 virtio,bridge=vmbr0"
     
     log "📤 Importing disk..."
     run_or_dry "qm importdisk $VMID '$IMAGE' $STORAGE"
