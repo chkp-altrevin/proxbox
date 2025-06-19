@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 # ========== DEFAULT CONFIGURATION ==========
 # Set all default values BEFORE loading .env or using them anywhere
@@ -45,6 +45,12 @@ DRY_RUN="${DRY_RUN:-0}"
 PROVISION_VM="${PROVISION_VM:-0}"
 KIOSK_MODE="${KIOSK_MODE:-false}"
 
+# Add these new variables after your existing defaults
+SHOW_RECENT_VMS="${SHOW_RECENT_VMS:-false}"
+SHOW_STORAGE_INFO="${SHOW_STORAGE_INFO:-false}"
+SHOW_NETWORK_INFO="${SHOW_NETWORK_INFO:-false}"
+SHOW_SYSTEM_INFO="${SHOW_SYSTEM_INFO:-false}"
+
 # Logging
 LOG_FILE="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
 
@@ -61,9 +67,11 @@ error_exit() {
 # Function to set VMID-dependent defaults (call this when VMID is known)
 set_vmid_defaults() {
     if [[ -n "$VMID" ]]; then
-        DEFAULT_SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
+        # For Proxmox VE 7.x and later, use this format
+        SERIAL0="socket,path=/var/run/qemu-server/${VMID}.serial"
     else
-        DEFAULT_SERIAL0="socket"
+        # Fallback to simple socket
+        SERIAL0="socket"
     fi
 }
 
@@ -240,15 +248,13 @@ clear_screen() {
     fi
     
     clear
-    # Set background color for the entire screen
-    echo -ne "$THEME_BG"
     
     # Create a gradient-like effect with different box styles
     case "$KIOSK_THEME" in
         "blue"|"cyber")
             echo -e "${THEME_BORDER}╔══════════════════════════════════════════════════════════════════════════════╗${COLORS[reset]}"
-            echo -e "${THEME_BORDER}║${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                      ${THEME_BORDER}║${COLORS[reset]}"
-            echo -e "${THEME_BORDER}║${THEME_SECONDARY}                                  $THEME_NAME                                 ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                         ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_SECONDARY}                                  $THEME_NAME                              ${THEME_BORDER}║${COLORS[reset]}"
             echo -e "${THEME_BORDER}╚══════════════════════════════════════════════════════════════════════════════╝${COLORS[reset]}"
             ;;
         "green")
@@ -278,117 +284,218 @@ clear_screen() {
     esac
     echo ""
 }
+# New streamlined status function
+show_compact_status() {
+    echo -e "${THEME_ACCENT:-}📊 Current Configuration:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
+    echo ""
+}
+
+# Enhanced status with toggleable sections
+show_detailed_status() {
+    show_compact_status
+    
+    # Recent VMs section
+    if [[ "$SHOW_RECENT_VMS" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}📋 Recent VMs/Templates:${COLORS[reset]:-}"
+        if command -v qm &>/dev/null; then
+            qm list | tail -5 | awk -v color="${THEME_TEXT:-}" -v reset="${COLORS[reset]:-}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
+        else
+            echo -e "${THEME_WARNING:-}   ⚠️  Proxmox tools not available${COLORS[reset]:-}"
+        fi
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}📋 Recent VMs/Templates: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+    
+    # Storage section
+    if [[ "$SHOW_STORAGE_INFO" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}💾 Storage Pools:${COLORS[reset]:-}"
+        if command -v pvesm &>/dev/null; then
+            pvesm status 2>/dev/null | awk 'NR>1 && NF>=6 {
+                name=$1; type=$2; total=$4; percent=$6
+                size_gb=total/1024/1024
+                printf "   %s %s %.1f GB (%s)\n", name, type, size_gb, percent
+            }' | head -5 || echo "   No storage information available"
+        else
+            echo -e "${THEME_WARNING:-}   pvesm command not available${COLORS[reset]:-}"
+        fi
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}💾 Storage Pools: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+    
+    # Network section
+    if [[ "$SHOW_NETWORK_INFO" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}🌐 Network Bridges (UP):${COLORS[reset]:-}"
+        bridge_list=$(ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" | cut -d: -f2 | awk '{print $1}' | tr '\n' ', ' | sed 's/,$//' || echo "None found")
+        echo -e "${THEME_TEXT:-}   $bridge_list${COLORS[reset]:-}"
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}🌐 Network Bridges: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+    
+    # System section
+    if [[ "$SHOW_SYSTEM_INFO" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}⚙️  System Information:${COLORS[reset]:-}"
+        echo -e "${THEME_TEXT:-}   Node: ${THEME_PRIMARY:-}$(hostname -s)${COLORS[reset]:-}"
+        echo -e "${THEME_TEXT:-}   Kernel: ${THEME_PRIMARY:-}$(uname -r)${COLORS[reset]:-}"
+        
+        if command -v pveversion &>/dev/null; then
+            local pve_version
+            pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
+            echo -e "${THEME_TEXT:-}   PVE Version: ${THEME_PRIMARY:-}$pve_version${COLORS[reset]:-}"
+        fi
+        
+        local uptime_info
+        uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
+        echo -e "${THEME_TEXT:-}   Uptime: ${THEME_PRIMARY:-}$uptime_info${COLORS[reset]:-}"
+        
+        if command -v qm &>/dev/null; then
+            local total_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {count++} END {print count+0}')
+            local running_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ && $3=="running" {count++} END {print count+0}')
+            echo -e "${THEME_TEXT:-}   VMs: ${THEME_PRIMARY:-}$total_vms${THEME_TEXT:-} total, ${THEME_SUCCESS:-}$running_vms${THEME_TEXT:-} running${COLORS[reset]:-}"
+        fi
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}⚙️  System Information: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+}
+
+# New function to toggle info sections
+toggle_info_section() {
+    while true; do
+        clear_screen
+        echo -e "${THEME_ACCENT}ℹ️  Information Panel Toggle${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}Toggle what information to display on the main menu:${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} Recent VMs/Templates      [$([ "$SHOW_RECENT_VMS" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} Storage Pools            [$([ "$SHOW_STORAGE_INFO" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} Network Bridges          [$([ "$SHOW_NETWORK_INFO" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}4)${THEME_TEXT} System Information       [$([ "$SHOW_SYSTEM_INFO" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}a)${THEME_TEXT} Show All                 - Turn on all sections${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}n)${THEME_TEXT} Hide All                 - Turn off all sections${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}0)${THEME_TEXT} 🔙 Back to main menu${COLORS[reset]}"
+        echo ""
+        echo -ne "${THEME_ACCENT}Select option [1-4,a,n,0]: ${COLORS[reset]}"
+        
+        local choice
+        read -r choice
+        
+        case "$choice" in
+            1) 
+                SHOW_RECENT_VMS=$([ "$SHOW_RECENT_VMS" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ Recent VMs/Templates: $([ "$SHOW_RECENT_VMS" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            2) 
+                SHOW_STORAGE_INFO=$([ "$SHOW_STORAGE_INFO" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ Storage Pools: $([ "$SHOW_STORAGE_INFO" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            3) 
+                SHOW_NETWORK_INFO=$([ "$SHOW_NETWORK_INFO" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ Network Bridges: $([ "$SHOW_NETWORK_INFO" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            4) 
+                SHOW_SYSTEM_INFO=$([ "$SHOW_SYSTEM_INFO" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ System Information: $([ "$SHOW_SYSTEM_INFO" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            a|A)
+                SHOW_RECENT_VMS="true"
+                SHOW_STORAGE_INFO="true"
+                SHOW_NETWORK_INFO="true"
+                SHOW_SYSTEM_INFO="true"
+                echo -e "${THEME_SUCCESS}✅ All information panels enabled${COLORS[reset]}"
+                sleep 1
+                ;;
+            n|N)
+                SHOW_RECENT_VMS="false"
+                SHOW_STORAGE_INFO="false"
+                SHOW_NETWORK_INFO="false"
+                SHOW_SYSTEM_INFO="false"
+                echo -e "${THEME_SUCCESS}✅ All information panels hidden${COLORS[reset]}"
+                sleep 1
+                ;;
+            0) return ;;
+            *) 
+                echo -e "${THEME_ERROR}❌ Invalid choice. Please select 1-4, a, n, or 0.${COLORS[reset]}"
+                sleep 2
+                ;;
+        esac
+    done
+}
 
 show_current_status() {
-    echo -e "${THEME_ACCENT}📊 Current Configuration:${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Storage: ${THEME_PRIMARY}$STORAGE${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Default Memory: ${THEME_PRIMARY}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Default Cores: ${THEME_PRIMARY}${CORES:-$DEFAULT_CORES}${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   CI User: ${THEME_PRIMARY}$CI_USER${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Image Size: ${THEME_PRIMARY}$IMAGE_SIZE${COLORS[reset]}"
+    echo -e "${THEME_ACCENT:-}📊 Current Configuration:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Default Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Default Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   CI User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Image Size: ${THEME_PRIMARY:-}$IMAGE_SIZE${COLORS[reset]:-}"
     echo ""
     
     # Show recent VMs/Templates
-    echo -e "${THEME_ACCENT}📋 Recent VMs/Templates:${COLORS[reset]}"
+    echo -e "${THEME_ACCENT:-}📋 Recent VMs/Templates:${COLORS[reset]:-}"
     if command -v qm &>/dev/null; then
-        qm list | tail -5 | awk -v color="${THEME_TEXT}" -v reset="${COLORS[reset]}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
+        qm list | tail -5 | awk -v color="${THEME_TEXT:-}" -v reset="${COLORS[reset]:-}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
     else
-        echo -e "${THEME_WARNING}   ⚠️  Proxmox tools not available${COLORS[reset]}"
+        echo -e "${THEME_WARNING:-}   ⚠️  Proxmox tools not available${COLORS[reset]:-}"
     fi
     echo ""
     
-    # === STORAGE INFORMATION ===
-    echo -e "${THEME_ACCENT}💾 Storage Pools:${COLORS[reset]}"
+    # === STORAGE INFORMATION === (FIXED VERSION)
+    echo -e "${THEME_ACCENT:-}💾 Storage Pools:${COLORS[reset]:-}"
     if command -v pvesm &>/dev/null; then
-        local temp_storage="/tmp/storage_$$.tmp"
-        pvesm status 2>/dev/null > "$temp_storage"
-        if [[ -s "$temp_storage" ]]; then
-            tail -n +2 "$temp_storage" | head -5 | while read -r name type status total used avail percent; do
-                if [[ -n "$name" && -n "$total" ]]; then
-                    local size_gb=$(echo "scale=1; $total/1024/1024" | bc 2>/dev/null || echo "0")
-                    echo -e "${THEME_TEXT}   ${THEME_PRIMARY}$name${THEME_TEXT} $type ${THEME_SECONDARY}$size_gb GB${THEME_TEXT} (${THEME_ACCENT}$percent${THEME_TEXT})${COLORS[reset]}"
-                fi
-            done
-        else
-            echo -e "${THEME_WARNING}   No storage information available${COLORS[reset]}"
-        fi
-        rm -f "$temp_storage" 2>/dev/null
+        # Use a safer approach without complex while loops
+        pvesm status 2>/dev/null | awk 'NR>1 && NF>=6 {
+            name=$1; type=$2; total=$4; percent=$6
+            size_gb=total/1024/1024
+            printf "   %s %s %.1f GB (%s)\n", name, type, size_gb, percent
+        }' | head -5 || echo "   No storage information available"
     else
-        echo -e "${THEME_WARNING}   pvesm command not available${COLORS[reset]}"
+        echo -e "${THEME_WARNING:-}   pvesm command not available${COLORS[reset]:-}"
     fi
     echo ""
     
-    # === NETWORK INFORMATION ===
-    echo -e "${THEME_ACCENT}🌐 Network Bridges (UP):${COLORS[reset]}"
-    local bridge_list=""
-    local temp_network="/tmp/network_$$.tmp"
-    ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" > "$temp_network" 2>/dev/null
-    
-    if [[ -s "$temp_network" ]]; then
-        while read -r line; do
-            if [[ -n "$line" ]]; then
-                local bridge=$(echo "$line" | cut -d: -f2 | awk '{print $1}')
-                if [[ -n "$bridge_list" ]]; then
-                    bridge_list="$bridge_list${THEME_DIM}, ${THEME_PRIMARY}$bridge"
-                else
-                    bridge_list="${THEME_PRIMARY}$bridge"
-                fi
-            fi
-        done < "$temp_network"
-        echo -e "${THEME_TEXT}   $bridge_list${COLORS[reset]}"
-    else
-        echo -e "${THEME_WARNING}   No UP vmbr bridges found${COLORS[reset]}"
-    fi
-    rm -f "$temp_network" 2>/dev/null
+    # === NETWORK INFORMATION === (FIXED VERSION)
+    echo -e "${THEME_ACCENT:-}🌐 Network Bridges (UP):${COLORS[reset]:-}"
+    # Use a simpler approach for network bridges
+    bridge_list=$(ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" | cut -d: -f2 | awk '{print $1}' | tr '\n' ', ' | sed 's/,$//' || echo "None found")
+    echo -e "${THEME_TEXT:-}   $bridge_list${COLORS[reset]:-}"
     echo ""
     
     # === SYSTEM INFORMATION ===
-    echo -e "${THEME_ACCENT}⚙️  System Information:${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Node: ${THEME_PRIMARY}$(hostname -s)${COLORS[reset]}"
-    echo -e "${THEME_TEXT}   Kernel: ${THEME_PRIMARY}$(uname -r)${COLORS[reset]}"
+    echo -e "${THEME_ACCENT:-}⚙️  System Information:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Node: ${THEME_PRIMARY:-}$(hostname -s)${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Kernel: ${THEME_PRIMARY:-}$(uname -r)${COLORS[reset]:-}"
     
     if command -v pveversion &>/dev/null; then
         local pve_version
         pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
-        echo -e "${THEME_TEXT}   PVE Version: ${THEME_PRIMARY}$pve_version${COLORS[reset]}"
+        echo -e "${THEME_TEXT:-}   PVE Version: ${THEME_PRIMARY:-}$pve_version${COLORS[reset]:-}"
     fi
     
     local uptime_info
     uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
-    echo -e "${THEME_TEXT}   Uptime: ${THEME_PRIMARY}$uptime_info${COLORS[reset]}"
+    echo -e "${THEME_TEXT:-}   Uptime: ${THEME_PRIMARY:-}$uptime_info${COLORS[reset]:-}"
     
-    # === VM/TEMPLATE COUNTS ===
+    # === VM/TEMPLATE COUNTS === (SAFER VERSION)
     if command -v qm &>/dev/null; then
-        local vm_count=0
-        local running_count=0
-        local template_count=0
+        # Use a simpler counting approach
+        local total_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {count++} END {print count+0}')
+        local running_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ && $3=="running" {count++} END {print count+0}')
         
-        local temp_vmlist="/tmp/vmlist_$$.tmp"
-        qm list 2>/dev/null | tail -n +2 > "$temp_vmlist"
-        
-        if [[ -s "$temp_vmlist" ]]; then
-            while read -r vmid name status rest; do
-                if [[ "$vmid" =~ ^[0-9]+$ ]]; then
-                    if [[ -f "/etc/pve/qemu-server/${vmid}.conf" ]] && \
-                       grep -q "^template:" "/etc/pve/qemu-server/${vmid}.conf" 2>/dev/null; then
-                        ((template_count++))
-                    else
-                        ((vm_count++))
-                        if [[ "$status" == "running" ]]; then
-                            ((running_count++))
-                        fi
-                    fi
-                fi
-            done < "$temp_vmlist"
-            
-            echo -e "${THEME_TEXT}   VMs: ${THEME_PRIMARY}$vm_count${THEME_TEXT} total, ${THEME_SUCCESS}$running_count${THEME_TEXT} running${COLORS[reset]}"
-            echo -e "${THEME_TEXT}   Templates: ${THEME_PRIMARY}$template_count${COLORS[reset]}"
-        fi
-        rm -f "$temp_vmlist" 2>/dev/null
+        echo -e "${THEME_TEXT:-}   VMs: ${THEME_PRIMARY:-}$total_vms${THEME_TEXT:-} total, ${THEME_SUCCESS:-}$running_vms${THEME_TEXT:-} running${COLORS[reset]:-}"
     fi
     echo ""
 }
-
 
 kiosk_menu() {
     # Set theme colors
@@ -396,21 +503,25 @@ kiosk_menu() {
     
     while true; do
         clear_screen
-        show_current_status
+        show_detailed_status
         
         echo -e "${THEME_ACCENT}🎛️  Main Menu - Select an action:${COLORS[reset]}"
         echo ""
-        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} 📁 Create Template from Image    - Build template from ISO/IMG${COLORS[reset]}"
-        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} 🖥️  Provision VM from Image      - Create VM from ISO/IMG${COLORS[reset]}"
-        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} 🔄 Clone Existing VM/Template   - Clone from existing VMID${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} 📁 Create Template             - Build template from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} 🖥️  Create VM from Image        - Create VM from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} 🔄 Create VM from Template     - Clone from existing VMID${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}4)${THEME_TEXT} 📋 List All VMs/Templates       - Show all VMIDs${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}5)${THEME_TEXT} 🗑️  Delete VM/Template           - Remove by VMID${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}6)${THEME_TEXT} ⚙️  Settings                     - Configure defaults${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}7)${THEME_TEXT} 🎨 Theme                        - Change color theme${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}8)${THEME_TEXT} 📖 Show Examples                - Usage examples${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_DIM}   ${THEME_SECONDARY}i)${THEME_DIM} ℹ️  Info Panel Toggle            - Show/hide status sections${COLORS[reset]}"
+        echo -e "${THEME_DIM}   ${THEME_SECONDARY}r)${THEME_DIM} 🔄 Refresh Status               - Reload all status info${COLORS[reset]}"
+        echo ""
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}0)${THEME_TEXT} 🚪 Exit                         - Quit kiosk mode${COLORS[reset]}"
         echo ""
-        echo -ne "${THEME_ACCENT}Enter your choice [0-8]: ${COLORS[reset]}"
+        echo -ne "${THEME_ACCENT}Enter your choice [0-8,i,r]: ${COLORS[reset]}"
         
         local choice
         read -r choice
@@ -424,11 +535,18 @@ kiosk_menu() {
             6) kiosk_settings ;;
             7) kiosk_theme_settings ;;
             8) show_examples; kiosk_pause ;;
+            i|I) toggle_info_section ;;
+            r|R) 
+                echo ""
+                echo -e "${THEME_ACCENT}🔄 Refreshing status information...${COLORS[reset]}"
+                sleep 1
+                ;;
             0) echo ""; echo -e "${THEME_SUCCESS}👋 Exiting. Goodbye!${COLORS[reset]}"; exit 0 ;;
-            *) echo ""; echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-8.${COLORS[reset]}"; sleep 2 ;;
+            *) echo ""; echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-8, i, or r.${COLORS[reset]}"; sleep 2 ;;
         esac
     done
 }
+
 kiosk_theme_settings() {
     while true; do
         clear_screen
@@ -1864,48 +1982,6 @@ kiosk_pause() {
     read -r
 }
 
-kiosk_theme_settings() {
-    while true; do
-        clear_screen
-        echo -e "${THEME_ACCENT}🎨 Theme Selection${COLORS[reset]}"
-        echo ""
-        echo -e "${THEME_TEXT}Current Theme: ${THEME_PRIMARY}$THEME_NAME${COLORS[reset]}"
-        echo ""
-        echo -e "${THEME_TEXT}Available Themes:${COLORS[reset]}"
-        echo ""
-        echo -e "${COLORS[bright_blue]}   1) 🔵 Blue Ocean      - Classic blue with cyan accents${COLORS[reset]}"
-        echo -e "${COLORS[bright_green]}   2) 🟢 Matrix Green    - Hacker-style green theme${COLORS[reset]}"
-        echo -e "${COLORS[bright_magenta]}   3) 🟣 Royal Purple    - Elegant purple theme${COLORS[reset]}"
-        echo -e "${COLORS[bright_yellow]}   4) 🟠 Sunset Orange   - Warm orange/yellow theme${COLORS[reset]}"
-        echo -e "${COLORS[bright_cyan]}   5) 🤖 Cyberpunk      - Futuristic cyan/green theme${COLORS[reset]}"
-        echo -e "${COLORS[white]}   6) ⚪ Minimal         - Clean black and white${COLORS[reset]}"
-        echo ""
-        echo -e "${THEME_TEXT}   0) 🔙 Back to main menu${COLORS[reset]}"
-        echo ""
-        echo -ne "${THEME_ACCENT}Select theme [0-6]: ${COLORS[reset]}"
-        
-        local choice
-        read -r choice
-        
-        case "$choice" in
-            1) KIOSK_THEME="blue"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Blue Ocean${COLORS[reset]}"; sleep 2 ;;
-            2) KIOSK_THEME="green"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Matrix Green${COLORS[reset]}"; sleep 2 ;;
-            3) KIOSK_THEME="purple"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Royal Purple${COLORS[reset]}"; sleep 2 ;;
-            4) KIOSK_THEME="orange"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Sunset Orange${COLORS[reset]}"; sleep 2 ;;
-            5) KIOSK_THEME="cyber"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Cyberpunk${COLORS[reset]}"; sleep 2 ;;
-            6) KIOSK_THEME="minimal"; set_theme_colors; echo -e "${THEME_SUCCESS}✅ Theme changed to Minimal${COLORS[reset]}"; sleep 2 ;;
-            0) return ;;
-            *) echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-6.${COLORS[reset]}"; sleep 2 ;;
-        esac
-    done
-}
-
-kiosk_pause() {
-    echo ""
-    echo -ne "${THEME_DIM}Press Enter to continue...${COLORS[reset]}"
-    read -r
-}
-
 # ========== HELP MENUS ==========
 show_help() {
     cat <<EOF
@@ -2082,7 +2158,7 @@ create_template() {
     run_or_dry "qemu-img resize '$IMAGE' $IMAGE_SIZE"
     
     log "🛠️ Creating VM $VMID..."
-    run_or_dry "qm create $VMID --name '$VM_NAME' --ostype $DEFAULT_OSTYPE --memory $MEMORY --cores $CORES --sockets $SOCKETS --agent 1 --bios $DEFAULT_BIOS --machine $DEFAULT_MACHINE --efidisk0 $STORAGE:0,pre-enrolled-keys=0 --cpu $DEFAULT_CPU --vga $DEFAULT_VGA --serial0 $DEFAULT_SERIAL0 --net0 virtio,bridge=vmbr0"
+    run_or_dry "qm create $VMID --name '$VM_NAME' --ostype $DEFAULT_OSTYPE --memory $MEMORY --cores $CORES --sockets $SOCKETS --agent 1 --bios $DEFAULT_BIOS --machine $DEFAULT_MACHINE --efidisk0 $STORAGE:0,pre-enrolled-keys=0 --cpu $DEFAULT_CPU --net0 virtio,bridge=vmbr0"
     
     log "📤 Importing disk..."
     run_or_dry "qm importdisk $VMID '$IMAGE' $STORAGE"
@@ -2157,10 +2233,11 @@ done
 
 # Handle kiosk mode
 if [[ "$KIOSK_MODE" == "true" ]]; then
+    # Ensure colors are initialized before starting kiosk menu
+    initialize_themes
     kiosk_menu
     exit 0
 fi
-
 # Handle list VMIDs
 if [[ $LIST_VMIDS -eq 1 ]]; then
     log "📋 Listing existing VMIDs:"
