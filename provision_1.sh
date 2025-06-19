@@ -505,9 +505,9 @@ kiosk_menu() {
         
         echo -e "${THEME_ACCENT}🎛️  Main Menu - Select an action:${COLORS[reset]}"
         echo ""
-        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} 📁 Create Template from Image    - Build template from ISO/IMG${COLORS[reset]}"
-        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} 🖥️  Provision VM from Image      - Create VM from ISO/IMG${COLORS[reset]}"
-        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} 🔄 Clone Existing VM/Template   - Clone from existing VMID${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} 📁 Create Template             - Build template from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} 🖥️ Create VM from Image        - Create VM from ISO/IMG${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} 🔄 Create VM from Clone        - Clone from existing VMID${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}4)${THEME_TEXT} 📋 List All VMs/Templates       - Show all VMIDs${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}5)${THEME_TEXT} 🗑️  Delete VM/Template           - Remove by VMID${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}6)${THEME_TEXT} ⚙️  Settings                     - Configure defaults${COLORS[reset]}"
