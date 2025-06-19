@@ -45,6 +45,12 @@ DRY_RUN="${DRY_RUN:-0}"
 PROVISION_VM="${PROVISION_VM:-0}"
 KIOSK_MODE="${KIOSK_MODE:-false}"
 
+# Add these new variables after your existing defaults
+SHOW_RECENT_VMS="${SHOW_RECENT_VMS:-false}"
+SHOW_STORAGE_INFO="${SHOW_STORAGE_INFO:-false}"
+SHOW_NETWORK_INFO="${SHOW_NETWORK_INFO:-false}"
+SHOW_SYSTEM_INFO="${SHOW_SYSTEM_INFO:-false}"
+
 # Logging
 LOG_FILE="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
 
@@ -276,6 +282,153 @@ clear_screen() {
     esac
     echo ""
 }
+# New streamlined status function
+show_compact_status() {
+    echo -e "${THEME_ACCENT:-}📊 Current Configuration:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
+    echo ""
+}
+
+# Enhanced status with toggleable sections
+show_detailed_status() {
+    show_compact_status
+    
+    # Recent VMs section
+    if [[ "$SHOW_RECENT_VMS" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}📋 Recent VMs/Templates:${COLORS[reset]:-}"
+        if command -v qm &>/dev/null; then
+            qm list | tail -5 | awk -v color="${THEME_TEXT:-}" -v reset="${COLORS[reset]:-}" 'NR==1 || $1 ~ /^[0-9]+$/ {printf "   %s%s%s\n", color, $0, reset}'
+        else
+            echo -e "${THEME_WARNING:-}   ⚠️  Proxmox tools not available${COLORS[reset]:-}"
+        fi
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}📋 Recent VMs/Templates: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+    
+    # Storage section
+    if [[ "$SHOW_STORAGE_INFO" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}💾 Storage Pools:${COLORS[reset]:-}"
+        if command -v pvesm &>/dev/null; then
+            pvesm status 2>/dev/null | awk 'NR>1 && NF>=6 {
+                name=$1; type=$2; total=$4; percent=$6
+                size_gb=total/1024/1024
+                printf "   %s %s %.1f GB (%s)\n", name, type, size_gb, percent
+            }' | head -5 || echo "   No storage information available"
+        else
+            echo -e "${THEME_WARNING:-}   pvesm command not available${COLORS[reset]:-}"
+        fi
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}💾 Storage Pools: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+    
+    # Network section
+    if [[ "$SHOW_NETWORK_INFO" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}🌐 Network Bridges (UP):${COLORS[reset]:-}"
+        bridge_list=$(ip link show 2>/dev/null | grep -E "^[0-9]+:.*vmbr.*state UP" | cut -d: -f2 | awk '{print $1}' | tr '\n' ', ' | sed 's/,$//' || echo "None found")
+        echo -e "${THEME_TEXT:-}   $bridge_list${COLORS[reset]:-}"
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}🌐 Network Bridges: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+    
+    # System section
+    if [[ "$SHOW_SYSTEM_INFO" == "true" ]]; then
+        echo -e "${THEME_ACCENT:-}⚙️  System Information:${COLORS[reset]:-}"
+        echo -e "${THEME_TEXT:-}   Node: ${THEME_PRIMARY:-}$(hostname -s)${COLORS[reset]:-}"
+        echo -e "${THEME_TEXT:-}   Kernel: ${THEME_PRIMARY:-}$(uname -r)${COLORS[reset]:-}"
+        
+        if command -v pveversion &>/dev/null; then
+            local pve_version
+            pve_version=$(pveversion 2>/dev/null | head -1 | cut -d'/' -f2 2>/dev/null || echo "Unknown")
+            echo -e "${THEME_TEXT:-}   PVE Version: ${THEME_PRIMARY:-}$pve_version${COLORS[reset]:-}"
+        fi
+        
+        local uptime_info
+        uptime_info=$(uptime | sed 's/.*up //' | sed 's/, load.*//' 2>/dev/null || echo "Unknown")
+        echo -e "${THEME_TEXT:-}   Uptime: ${THEME_PRIMARY:-}$uptime_info${COLORS[reset]:-}"
+        
+        if command -v qm &>/dev/null; then
+            local total_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {count++} END {print count+0}')
+            local running_vms=$(qm list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ && $3=="running" {count++} END {print count+0}')
+            echo -e "${THEME_TEXT:-}   VMs: ${THEME_PRIMARY:-}$total_vms${THEME_TEXT:-} total, ${THEME_SUCCESS:-}$running_vms${THEME_TEXT:-} running${COLORS[reset]:-}"
+        fi
+        echo ""
+    else
+        echo -e "${THEME_DIM:-}⚙️  System Information: ${THEME_TEXT:-}[Hidden - use 'i' to toggle]${COLORS[reset]:-}"
+    fi
+}
+
+# New function to toggle info sections
+toggle_info_section() {
+    while true; do
+        clear_screen
+        echo -e "${THEME_ACCENT}ℹ️  Information Panel Toggle${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}Toggle what information to display on the main menu:${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}1)${THEME_TEXT} Recent VMs/Templates      [$([ "$SHOW_RECENT_VMS" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}2)${THEME_TEXT} Storage Pools            [$([ "$SHOW_STORAGE_INFO" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}3)${THEME_TEXT} Network Bridges          [$([ "$SHOW_NETWORK_INFO" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}4)${THEME_TEXT} System Information       [$([ "$SHOW_SYSTEM_INFO" == "true" ] && echo "${THEME_SUCCESS}ON ${COLORS[reset]}" || echo "${THEME_DIM}OFF${COLORS[reset]}")${THEME_TEXT}]${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}a)${THEME_TEXT} Show All                 - Turn on all sections${COLORS[reset]}"
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}n)${THEME_TEXT} Hide All                 - Turn off all sections${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_TEXT}   ${THEME_PRIMARY}0)${THEME_TEXT} 🔙 Back to main menu${COLORS[reset]}"
+        echo ""
+        echo -ne "${THEME_ACCENT}Select option [1-4,a,n,0]: ${COLORS[reset]}"
+        
+        local choice
+        read -r choice
+        
+        case "$choice" in
+            1) 
+                SHOW_RECENT_VMS=$([ "$SHOW_RECENT_VMS" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ Recent VMs/Templates: $([ "$SHOW_RECENT_VMS" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            2) 
+                SHOW_STORAGE_INFO=$([ "$SHOW_STORAGE_INFO" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ Storage Pools: $([ "$SHOW_STORAGE_INFO" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            3) 
+                SHOW_NETWORK_INFO=$([ "$SHOW_NETWORK_INFO" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ Network Bridges: $([ "$SHOW_NETWORK_INFO" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            4) 
+                SHOW_SYSTEM_INFO=$([ "$SHOW_SYSTEM_INFO" == "true" ] && echo "false" || echo "true")
+                echo -e "${THEME_SUCCESS}✅ System Information: $([ "$SHOW_SYSTEM_INFO" == "true" ] && echo "ON" || echo "OFF")${COLORS[reset]}"
+                sleep 1
+                ;;
+            a|A)
+                SHOW_RECENT_VMS="true"
+                SHOW_STORAGE_INFO="true"
+                SHOW_NETWORK_INFO="true"
+                SHOW_SYSTEM_INFO="true"
+                echo -e "${THEME_SUCCESS}✅ All information panels enabled${COLORS[reset]}"
+                sleep 1
+                ;;
+            n|N)
+                SHOW_RECENT_VMS="false"
+                SHOW_STORAGE_INFO="false"
+                SHOW_NETWORK_INFO="false"
+                SHOW_SYSTEM_INFO="false"
+                echo -e "${THEME_SUCCESS}✅ All information panels hidden${COLORS[reset]}"
+                sleep 1
+                ;;
+            0) return ;;
+            *) 
+                echo -e "${THEME_ERROR}❌ Invalid choice. Please select 1-4, a, n, or 0.${COLORS[reset]}"
+                sleep 2
+                ;;
+        esac
+    done
+}
 
 show_current_status() {
     echo -e "${THEME_ACCENT:-}📊 Current Configuration:${COLORS[reset]:-}"
@@ -348,7 +501,7 @@ kiosk_menu() {
     
     while true; do
         clear_screen
-        show_current_status
+        show_detailed_status
         
         echo -e "${THEME_ACCENT}🎛️  Main Menu - Select an action:${COLORS[reset]}"
         echo ""
@@ -360,9 +513,13 @@ kiosk_menu() {
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}6)${THEME_TEXT} ⚙️  Settings                     - Configure defaults${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}7)${THEME_TEXT} 🎨 Theme                        - Change color theme${COLORS[reset]}"
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}8)${THEME_TEXT} 📖 Show Examples                - Usage examples${COLORS[reset]}"
+        echo ""
+        echo -e "${THEME_DIM}   ${THEME_SECONDARY}i)${THEME_DIM} ℹ️  Info Panel Toggle            - Show/hide status sections${COLORS[reset]}"
+        echo -e "${THEME_DIM}   ${THEME_SECONDARY}r)${THEME_DIM} 🔄 Refresh Status               - Reload all status info${COLORS[reset]}"
+        echo ""
         echo -e "${THEME_TEXT}   ${THEME_PRIMARY}0)${THEME_TEXT} 🚪 Exit                         - Quit kiosk mode${COLORS[reset]}"
         echo ""
-        echo -ne "${THEME_ACCENT}Enter your choice [0-8]: ${COLORS[reset]}"
+        echo -ne "${THEME_ACCENT}Enter your choice [0-8,i,r]: ${COLORS[reset]}"
         
         local choice
         read -r choice
@@ -376,8 +533,14 @@ kiosk_menu() {
             6) kiosk_settings ;;
             7) kiosk_theme_settings ;;
             8) show_examples; kiosk_pause ;;
+            i|I) toggle_info_section ;;
+            r|R) 
+                echo ""
+                echo -e "${THEME_ACCENT}🔄 Refreshing status information...${COLORS[reset]}"
+                sleep 1
+                ;;
             0) echo ""; echo -e "${THEME_SUCCESS}👋 Exiting. Goodbye!${COLORS[reset]}"; exit 0 ;;
-            *) echo ""; echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-8.${COLORS[reset]}"; sleep 2 ;;
+            *) echo ""; echo -e "${THEME_ERROR}❌ Invalid choice. Please select 0-8, i, or r.${COLORS[reset]}"; sleep 2 ;;
         esac
     done
 }
