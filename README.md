@@ -4,6 +4,8 @@
 
 A powerful, user-friendly automation tool for creating, managing, and deploying Proxmox VE templates and virtual machines. Features both command-line interface and interactive kiosk mode for streamlined operations.
 
+![proxbox-preview](https://github.com/user-attachments/assets/bf090fe6-5804-47bd-9b40-a1d08166fc41)
+
 ## ✨ Features
 
 - **🎛️ Interactive Kiosk Mode** - User-friendly menu-driven interface
