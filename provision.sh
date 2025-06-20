@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -euo pipefail
 
 # ========== DEFAULT CONFIGURATION ==========
 # Set all default values BEFORE loading .env or using them anywhere
