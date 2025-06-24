@@ -161,7 +161,7 @@ set_theme_colors() {
             THEME_DIM="${COLORS[bright_black]}"
             THEME_BORDER="${COLORS[cyan]}"
             THEME_BG="${COLORS[bg_black]}"
-            THEME_NAME="🤖 Cyberpunk"
+            THEME_NAME="🤖 Cyberphunk"
             ;;
         "minimal")
             THEME_PRIMARY="${COLORS[white]}"
