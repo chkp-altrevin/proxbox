@@ -738,6 +738,7 @@ kiosk_create_template() {
     local storage_config="$STORAGE"
     local image_size_config="$IMAGE_SIZE"
     local ciuser_config="$CI_USER"
+    local cipassword_config="$CI_PASSWORD"
     local sshkeys_config="$CI_SSH_KEY_PATH"
     local tags_config="$CI_TAGS"
     local ostype_config="$DEFAULT_OSTYPE"
@@ -832,6 +833,13 @@ kiosk_create_template() {
         read -r new_ciuser
         ciuser_config="${new_ciuser:-$ciuser_config}"
         echo ""
+
+        echo -n "Cloud-Init Password [$cipassword_config]: "
+        echo "   💡 Example: P@ssword!"
+        echo "   📋 Default password created in cloned VMs"
+        read -r new_cipassword
+        cipassword_config="${new_cipassword:-$cipassword_config}"
+        echo ""
         
         echo -n "SSH Keys Path [$sshkeys_config]: "
         echo "   💡 Examples: /root/.ssh/authorized_keys, /home/user/.ssh/id_rsa.pub"
@@ -869,6 +877,7 @@ kiosk_create_template() {
     echo ""
     echo "☁️  Cloud-Init:"
     echo "   User: $ciuser_config"
+    echo "   Password: $cipassword_config"
     echo "   SSH Keys: $sshkeys_config"
     echo "   Tags: $tags_config"
     echo ""
@@ -894,6 +903,7 @@ kiosk_create_template() {
         STORAGE="$storage_config"
         IMAGE_SIZE="$image_size_config"
         CI_USER="$ciuser_config"
+        CI_PASSWORD="$cipassword_config"
         CI_SSH_KEY_PATH="$sshkeys_config"
         CI_TAGS="$tags_config"
         DEFAULT_OSTYPE="$ostype_config"
@@ -1044,6 +1054,7 @@ kiosk_provision_vm() {
     local storage_config="$STORAGE"
     local image_size_config="$IMAGE_SIZE"
     local ciuser_config="$CI_USER"
+    local cipassword_config="$CI_PASSWORD"
     local sshkeys_config="$CI_SSH_KEY_PATH"
     local tags_config="$CI_TAGS"
     local ostype_config="$DEFAULT_OSTYPE"
@@ -1123,6 +1134,12 @@ kiosk_provision_vm() {
         read -r new_ciuser
         ciuser_config="${new_ciuser:-$ciuser_config}"
         echo ""
+
+        echo -n "Cloud-Init Password [$cipassword_config]: "
+        echo "   💡 Example: P@ssword!"
+        read -r new_cipassword
+        cipassword_config="${new_cipassword:-$cipassword_config}"
+        echo ""
         
         echo -n "SSH Keys Path [$sshkeys_config]: "
         echo "   💡 Examples: /root/.ssh/authorized_keys, /home/user/.ssh/id_rsa.pub"
@@ -1158,6 +1175,7 @@ kiosk_provision_vm() {
     echo ""
     echo "☁️  Cloud-Init:"
     echo "   User: $ciuser_config"
+    echo "   Password: $cipassword_config"
     echo "   SSH Keys: $sshkeys_config"
     echo "   Tags: $tags_config"
     echo ""
@@ -1181,6 +1199,7 @@ kiosk_provision_vm() {
         STORAGE="$storage_config"
         IMAGE_SIZE="$image_size_config"
         CI_USER="$ciuser_config"
+        CI_PASSWORD="$cipassword_config"
         CI_SSH_KEY_PATH="$sshkeys_config"
         CI_TAGS="$tags_config"
         DEFAULT_OSTYPE="$ostype_config"
