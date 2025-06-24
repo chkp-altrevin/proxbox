@@ -254,7 +254,7 @@ clear_screen() {
         "blue"|"cyber")
             echo -e "${THEME_BORDER}╔══════════════════════════════════════════════════════════════════════════════╗${COLORS[reset]}"
             echo -e "${THEME_BORDER}║${THEME_PRIMARY}                      🏗️  PROXMOX TEMPLATE PROVISIONER                         ${THEME_BORDER}║${COLORS[reset]}"
-            echo -e "${THEME_BORDER}║${THEME_SECONDARY}                                  $THEME_NAME                                ${THEME_BORDER}║${COLORS[reset]}"
+            echo -e "${THEME_BORDER}║${THEME_SECONDARY}                                  $THEME_NAME                               ${THEME_BORDER}║${COLORS[reset]}"
             echo -e "${THEME_BORDER}╚══════════════════════════════════════════════════════════════════════════════╝${COLORS[reset]}"
             ;;
         "green")
