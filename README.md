@@ -22,10 +22,10 @@ A powerful, user-friendly automation tool for creating, managing, and deploying 
 Clone the repo, chmod +x, follow procedures below or use the installer script which will handle these automagically.
 
 ### Interactive Mode (Recommended)
-```bash
-./provision.sh --kiosk
-```
-**Installer Script**
+
+**Online Demo Script**
+Login to your Proxmox, copy and paste below. See magic.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chkp-altrevin/proxbox/main/provision.sh -o provision.sh -f && chmod +x provision.sh && ./provision.sh --kiosk
 ```
