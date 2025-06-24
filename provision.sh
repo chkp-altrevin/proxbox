@@ -286,9 +286,22 @@ clear_screen() {
 }
 # New streamlined status function
 show_compact_status() {
+    # Get CPU info
+    CPU_MODEL=$(lscpu | grep 'Model name' | sed 's/Model name:\s*//')
+    CPU_CORES=$(lscpu | grep '^CPU(s):' | awk '{print $2}')
+    
+    # Get memory info
+    MEM_TOTAL=$(free -h | awk '/^Mem:/ {print $2}')
+    MEM_USED=$(free -h | awk '/^Mem:/ {print $3}')
+    
+    # Get total disk usage
+    DISK_USED=$(df -h --total | grep total | awk '{print $3}')
+    DISK_TOTAL=$(df -h --total | grep total | awk '{print $2}')
+    
     echo -e "${THEME_ACCENT:-}📊 Host Configuration:${COLORS[reset]:-}"
-    echo -e "${THEME_TEXT:-}   Host: ${THEME_PRIMARY:-}$HOSTNAME${COLORS[reset]:-}"
-    echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | Logged in User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Host: ${THEME_PRIMARY:-}$(hostname)${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEM_USED}/${MEM_TOTAL}${COLORS[reset]:-} | CPU: ${THEME_PRIMARY:-}${CPU_CORES} cores (${CPU_MODEL})${COLORS[reset]:-} | Logged in user: ${THEME_PRIMARY:-}$(user)${COLORS[reset]:-}"
+    echo ""
     echo -e "${THEME_ACCENT:-}📊 Current Template Configuration:${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
