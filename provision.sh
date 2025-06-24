@@ -1873,6 +1873,7 @@ kiosk_settings() {
         echo "  3) Default Cores: ${CORES:-$DEFAULT_CORES}"
         echo "  4) Default Image Size: $IMAGE_SIZE"
         echo "  5) CI User: $CI_USER"
+        echo "  *) CI Password: $CI_PASSWORD"
         echo "  6) SSH Key Path: $CI_SSH_KEY_PATH"
         echo "  7) Default Tags: $CI_TAGS"
         echo "  8) Dry Run Mode: $([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")"
@@ -1979,6 +1980,7 @@ kiosk_settings() {
                 CORES=""
                 IMAGE_SIZE="40G"
                 CI_USER="ubuntu"
+                CI_PASSWORD="P@ssword!"
                 CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
                 CI_TAGS="ubuntu-template,24.04,cloudinit"
                 DRY_RUN=0
@@ -2025,6 +2027,7 @@ Usage: $0 [options]
   --cpu <type>                   CPU type (default: host)
   --tags <tags>                  Tags for the template
   --ciuser <username>            Cloud-init user (default: ubuntu)
+  --cipassword <password>        Cloud-init password (default: P@ssword!)
   --sshkeys <file>               SSH key path (default: /root/.ssh/authorized_keys)
 
 🖥️  VM Provisioning:
@@ -2195,6 +2198,7 @@ create_template() {
     log "🔐 Applying cloud-init settings..."
     run_or_dry "qm set $VMID --tags '$CI_TAGS'"
     run_or_dry "qm set $VMID --ciuser '$CI_USER'"
+    run_or_dry "qm set $VMID --cipassword '$CI_PASSWORD'"
     run_or_dry "qm set $VMID --sshkeys '$CI_SSH_KEY_PATH'"
     run_or_dry "qm set $VMID --ipconfig0 ip=dhcp"
     
@@ -2236,6 +2240,7 @@ while [[ $# -gt 0 ]]; do
         --sockets) SOCKETS="$2"; shift 2 ;;
         --tags) CI_TAGS="$2"; shift 2 ;;
         --ciuser) CI_USER="$2"; shift 2 ;;
+        --cipassword) CI_PASSWORD="$2"; shift 2 ;;
         --sshkeys) CI_SSH_KEY_PATH="$2"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
         --delete-vmid) DELETE_VMID="$2"; shift 2 ;;
