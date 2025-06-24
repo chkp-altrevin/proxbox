@@ -300,7 +300,7 @@ show_compact_status() {
     
     echo -e "${THEME_ACCENT:-}📊 Host Configuration:${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Host: ${THEME_PRIMARY:-}$(hostname)${COLORS[reset]:-}"
-    echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEM_USED}/${MEM_TOTAL}${COLORS[reset]:-} | CPU: ${THEME_PRIMARY:-}${CPU_CORES} cores (${CPU_MODEL})${COLORS[reset]:-} | Logged in user: ${THEME_PRIMARY:-}$(user)${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEM_USED}/${MEM_TOTAL}${COLORS[reset]:-} | CPU: ${THEME_PRIMARY:-}${CPU_CORES} cores (${CPU_MODEL})${COLORS[reset]:-} | Logged in user: ${THEME_PRIMARY:-}$(USER)${COLORS[reset]:-}"
     echo ""
     echo -e "${THEME_ACCENT:-}📊 Current Template Configuration:${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
