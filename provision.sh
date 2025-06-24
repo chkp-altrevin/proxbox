@@ -287,6 +287,7 @@ clear_screen() {
 # New streamlined status function
 show_compact_status() {
     echo -e "${THEME_ACCENT:-}📊 Current Configuration:${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Host: ${THEME_PRIMARY:-}$HOSTNAME${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
     echo ""
