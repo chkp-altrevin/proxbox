@@ -310,7 +310,7 @@ show_compact_status() {
     echo -e "${THEME_ACCENT:-}📊 Current Template Configuration:${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
-    echo -c "${THEME_TEXT:-}   Dry-run mode: ${THEME_PRIMARY:-}$([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")${COLORS[reset]:-}"
+    echo -e "${THEME_TEXT:-}   Dry-run mode: ${THEME_PRIMARY:-}$([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")${COLORS[reset]:-}"
     echo ""
 }
 
