@@ -1892,12 +1892,12 @@ kiosk_settings() {
         echo "  3) Default Cores: ${CORES:-$DEFAULT_CORES}"
         echo "  4) Default Image Size: $IMAGE_SIZE"
         echo "  5) CI User: $CI_USER"
-        echo "  *) CI Password: $CI_PASSWORD"
-        echo "  6) SSH Key Path: $CI_SSH_KEY_PATH"
-        echo "  7) Default Tags: $CI_TAGS"
-        echo "  8) Dry Run Mode: $([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")"
+        echo "  6) CI Password: $CI_PASSWORD"
+        echo "  7) SSH Key Path: $CI_SSH_KEY_PATH"
+        echo "  8) Default Tags: $CI_TAGS"
+        echo "  9) Dry Run Mode: $([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")"
         echo ""
-        echo "  9) Reset to defaults"
+        echo "  10) Reset to defaults"
         echo "  0) Back to main menu"
         echo ""
         echo -n "Enter setting to change [0-9]: "
@@ -1963,6 +1963,17 @@ kiosk_settings() {
                 ;;
             6)
                 echo ""
+                echo -n "Enter CI password [$CI_PASSWORD]: "
+                local new_password
+                read -r new_password
+                if [[ -n "$new_password" ]]; then
+                    CI_PASSWORD="$new_password"
+                    echo "✅ CI password updated to: $CI_PASSWORD"
+                    sleep 2
+                fi
+                ;;
+            7)
+                echo ""
                 echo -n "Enter SSH key path [$CI_SSH_KEY_PATH]: "
                 local new_keypath
                 read -r new_keypath
@@ -1972,7 +1983,7 @@ kiosk_settings() {
                     sleep 2
                 fi
                 ;;
-            7)
+            8)
                 echo ""
                 echo -n "Enter tags (comma-separated) [$CI_TAGS]: "
                 local new_tags
@@ -1983,7 +1994,7 @@ kiosk_settings() {
                     sleep 2
                 fi
                 ;;
-            8)
+            9)
                 if [[ $DRY_RUN -eq 1 ]]; then
                     DRY_RUN=0
                     echo "✅ Dry run mode disabled"
@@ -1993,7 +2004,7 @@ kiosk_settings() {
                 fi
                 sleep 2
                 ;;
-            9)
+            10)
                 STORAGE="local-lvm"
                 MEMORY=""
                 CORES=""
