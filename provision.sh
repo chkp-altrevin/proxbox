@@ -304,13 +304,13 @@ show_compact_status() {
     echo -e "${THEME_TEXT:-}   Host: ${THEME_PRIMARY:-}$(hostname)${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEM_USED}/${MEM_TOTAL}${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   CPU Cores: ${THEME_PRIMARY:-}${CPU_CORES}${COLORS[reset]:-}"
-    # echo -e "${THEME_TEXT:-}   CPU Model: ${THEME_PRIMARY:-}${CPU_MODEL}${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Disk Usage: ${THEME_PRIMARY:-}${DISK_USED}/${DISK_TOTAL}${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Logged in User: ${THEME_PRIMARY:-}$USER${COLORS[reset]:-}"
     echo ""
     echo -e "${THEME_ACCENT:-}📊 Current Template Configuration:${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Storage: ${THEME_PRIMARY:-}$STORAGE${COLORS[reset]:-}"
     echo -e "${THEME_TEXT:-}   Memory: ${THEME_PRIMARY:-}${MEMORY:-$DEFAULT_MEMORY}MB${COLORS[reset]:-} | Cores: ${THEME_PRIMARY:-}${CORES:-$DEFAULT_CORES}${COLORS[reset]:-} | User: ${THEME_PRIMARY:-}$CI_USER${COLORS[reset]:-}"
+    echo -c "${THEME_TEXT:-}   Dry-run mode: ${THEME_PRIMARY:-}$([ $DRY_RUN -eq 1 ] && echo "Enabled" || echo "Disabled")${COLORS[reset]:-}"
     echo ""
 }
 
