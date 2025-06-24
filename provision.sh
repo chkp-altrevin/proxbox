@@ -22,6 +22,7 @@ IMAGE_SIZE="${IMAGE_SIZE:-$DEFAULT_IMAGE_SIZE}"
 
 # Cloud-init defaults
 DEFAULT_CI_USER="ubuntu"
+DEFAULT_CI_PASSWORD="P@ssword!"
 DEFAULT_CI_SSH_KEY_PATH="/root/.ssh/authorized_keys"
 DEFAULT_CI_TAGS="ubuntu-template,24.04,cloudinit"
 CI_USER="${CI_USER:-$DEFAULT_CI_USER}"
